@@ -54,7 +54,7 @@ local NOTE_NAMES = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"}
 -- state
 -- -------------------------------------------------------
 local selected_track = 1
-local screen_cursor  = 1  -- 1=scale/root 2=vel 3=density 4=gate
+local screen_cursor  = 1  -- 1=scale/root 2=vel 3=density 4=gate 5=division 6=swing
 local is_playing     = true
 
 local tracks = {}
@@ -201,6 +201,8 @@ local function setup_params()
 
     params:add_option("t" .. i .. "_div", "Division", division_names, 2)
 
+    params:add_number("t" .. i .. "_swing", "Swing %", 0, 50, 0)
+
     nb:add_param("t" .. i .. "_voice", "Track " .. i)
 
     params:add_number("t" .. i .. "_midi_ch", "MIDI Ch", 1, 16, i)
@@ -239,13 +241,19 @@ local function setup_lattice()
             end
             local step = t.playhead
             if t.steps[step] and not t.muted then
-              local note = t.notes[step]
-              local vel  = t.velocities[step]
-              local gate = t.gates[step]
-              local ii   = i
-              track_note_on(ii, note, vel)
+              local note     = t.notes[step]
+              local vel      = t.velocities[step]
+              local gate     = t.gates[step]
+              local ii       = i
+              local bpm      = params:get("clock_tempo")
+              local step_s   = divisions[di] * 4 * (60 / bpm)
+              local swing_s  = (step % 2 == 0)
+                and (params:get("t" .. i .. "_swing") / 100 * step_s)
+                or 0
               clock.run(function()
-                clock.sleep(gate * 60 / params:get("clock_tempo"))
+                if swing_s > 0 then clock.sleep(swing_s) end
+                track_note_on(ii, note, vel)
+                clock.sleep(gate * 60 / bpm)
                 track_note_off(ii, note)
               end)
             end
@@ -335,7 +343,7 @@ function redraw()
   local ti  = selected_track
   local lv  = function(q) return q == screen_cursor and 15 or 3 end
 
-  -- header
+  -- shared header
   screen.font_size(7)
   screen.level(15)
   screen.move(2, 9)
@@ -348,53 +356,74 @@ function redraw()
     screen.text_right("muted")
   end
 
-  -- cross lines
+  -- header divider
   screen.level(3)
   screen.line_width(0.5)
-  screen.move(0,   12); screen.line(128, 12); screen.stroke()  -- header divider
-  screen.move(64,  12); screen.line(64,  64); screen.stroke()  -- vertical
-  screen.move(0,   38); screen.line(128, 38); screen.stroke()  -- horizontal mid
+  screen.move(0, 12); screen.line(128, 12); screen.stroke()
 
-  -- gather values
-  local scale_name = scale_abbr(SCALES[params:get("t" .. ti .. "_scale")].name)
-  local root_name  = NOTE_NAMES[params:get("t" .. ti .. "_root")]
-  local vel_lo     = params:get("t" .. ti .. "_vel_min")
-  local vel_hi     = params:get("t" .. ti .. "_vel_max")
-  local density    = params:get("t" .. ti .. "_density")
-  local div_name   = division_names[params:get("t" .. ti .. "_div")]
-  local gate_lo    = params:get("t" .. ti .. "_gate_min")
-  local gate_hi    = params:get("t" .. ti .. "_gate_max")
+  if screen_cursor <= 4 then
+    -- PAGE 1: four quadrants
+    screen.move(64, 12); screen.line(64,  64); screen.stroke()
+    screen.move(0,  38); screen.line(128, 38); screen.stroke()
 
-  -- TL: notes (E2=scale, E3=root)
-  screen.level(lv(1))
-  screen.font_size(5)
-  screen.move(2, 20); screen.text("notes")
-  screen.font_size(7)
-  screen.move(2, 29); screen.text(scale_name)
-  screen.move(2, 36); screen.text(root_name)
+    local scale_name = scale_abbr(SCALES[params:get("t" .. ti .. "_scale")].name)
+    local root_name  = NOTE_NAMES[params:get("t" .. ti .. "_root")]
+    local vel_lo     = params:get("t" .. ti .. "_vel_min")
+    local vel_hi     = params:get("t" .. ti .. "_vel_max")
+    local density    = params:get("t" .. ti .. "_density")
+    local gate_lo    = params:get("t" .. ti .. "_gate_min")
+    local gate_hi    = params:get("t" .. ti .. "_gate_max")
 
-  -- TR: velocity (E2=min, E3=max)
-  screen.level(lv(2))
-  screen.font_size(5)
-  screen.move(66, 20); screen.text("velocity")
-  screen.font_size(7)
-  screen.move(66, 29); screen.text(vel_lo .. " - " .. vel_hi)
+    -- TL: notes
+    screen.level(lv(1))
+    screen.font_size(5)
+    screen.move(2, 20); screen.text("notes")
+    screen.font_size(7)
+    screen.move(2, 29); screen.text(scale_name)
+    screen.move(2, 36); screen.text(root_name)
 
-  -- BL: trigs (E2=density, E3=division)
-  screen.level(lv(3))
-  screen.font_size(5)
-  screen.move(2, 46); screen.text("trigs")
-  screen.font_size(7)
-  screen.move(2, 55); screen.text(density .. "%")
-  screen.font_size(5)
-  screen.move(2, 63); screen.text(div_name)
+    -- TR: velocity
+    screen.level(lv(2))
+    screen.font_size(5)
+    screen.move(66, 20); screen.text("velocity")
+    screen.font_size(7)
+    screen.move(66, 29); screen.text(vel_lo .. " - " .. vel_hi)
 
-  -- BR: gate (E2=min, E3=max)
-  screen.level(lv(4))
-  screen.font_size(5)
-  screen.move(66, 46); screen.text("gate (beats)")
-  screen.font_size(7)
-  screen.move(66, 55); screen.text(string.format("%.2f-%.2f", gate_lo, gate_hi))
+    -- BL: trigs
+    screen.level(lv(3))
+    screen.font_size(5)
+    screen.move(2, 46); screen.text("trigs")
+    screen.font_size(7)
+    screen.move(2, 57); screen.text(density .. "%")
+
+    -- BR: gate
+    screen.level(lv(4))
+    screen.font_size(5)
+    screen.move(66, 46); screen.text("gate (beats)")
+    screen.font_size(7)
+    screen.move(66, 57); screen.text(string.format("%.2f-%.2f", gate_lo, gate_hi))
+
+  else
+    -- PAGE 2: division + swing
+    screen.move(64, 12); screen.line(64, 64); screen.stroke()
+
+    local div_name = division_names[params:get("t" .. ti .. "_div")]
+    local swing    = params:get("t" .. ti .. "_swing")
+
+    -- left: division
+    screen.level(lv(5))
+    screen.font_size(5)
+    screen.move(2, 26); screen.text("division")
+    screen.font_size(9)
+    screen.move(2, 42); screen.text(div_name)
+
+    -- right: swing
+    screen.level(lv(6))
+    screen.font_size(5)
+    screen.move(66, 26); screen.text("swing")
+    screen.font_size(9)
+    screen.move(66, 42); screen.text(swing .. "%")
+  end
 
   screen.update()
 end
@@ -405,18 +434,22 @@ end
 function enc(n, d)
   local ti = selected_track
   if n == 1 then
-    screen_cursor = ((screen_cursor - 1 + d) % 4) + 1
+    screen_cursor = ((screen_cursor - 1 + d) % 6) + 1
   elseif n == 2 then
-    if     screen_cursor == 1 then params:delta("t" .. ti .. "_scale",   d)
-    elseif screen_cursor == 2 then params:delta("t" .. ti .. "_vel_min", d)
-    elseif screen_cursor == 3 then params:delta("t" .. ti .. "_density", d)
+    if     screen_cursor == 1 then params:delta("t" .. ti .. "_scale",    d)
+    elseif screen_cursor == 2 then params:delta("t" .. ti .. "_vel_min",  d)
+    elseif screen_cursor == 3 then params:delta("t" .. ti .. "_density",  d)
     elseif screen_cursor == 4 then params:delta("t" .. ti .. "_gate_min", d)
+    elseif screen_cursor == 5 then params:delta("t" .. ti .. "_div",      d)
+    elseif screen_cursor == 6 then params:delta("t" .. ti .. "_swing",    d)
     end
   elseif n == 3 then
     if     screen_cursor == 1 then params:delta("t" .. ti .. "_root",     d)
     elseif screen_cursor == 2 then params:delta("t" .. ti .. "_vel_max",  d)
-    elseif screen_cursor == 3 then params:delta("t" .. ti .. "_div",      d)
+    elseif screen_cursor == 3 then params:delta("t" .. ti .. "_density",  d)
     elseif screen_cursor == 4 then params:delta("t" .. ti .. "_gate_max", d)
+    elseif screen_cursor == 5 then params:delta("t" .. ti .. "_div",      d)
+    elseif screen_cursor == 6 then params:delta("t" .. ti .. "_swing",    d)
     end
   end
   redraw()
