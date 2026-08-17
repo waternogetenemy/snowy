@@ -344,101 +344,95 @@ end
 
 function redraw()
   screen.clear()
-  screen.aa(1)
+  screen.aa(0)
   screen.font_face(1)
+  screen.font_size(8)
 
   local ti = selected_track
 
+  local function rule(y)
+    screen.level(2)
+    screen.line_width(1)
+    screen.move(0, y); screen.line(128, y); screen.stroke()
+  end
+
   local function header(label)
-    screen.font_size(5)
-    screen.level(4)
-    screen.move(2, 8); screen.text(label .. "  —  track " .. ti)
+    screen.level(5)
+    screen.move(2, 9); screen.text(label)
+    screen.move(126, 9); screen.text_right("tr." .. ti)
+    rule(12)
+  end
+
+  local function hints(left, right)
     screen.level(3)
-    screen.line_width(0.5)
-    screen.move(0, 11); screen.line(128, 11); screen.stroke()
+    if left  then screen.move(2, 61);   screen.text(left) end
+    if right then screen.move(126, 61); screen.text_right(right) end
   end
 
   if gen_mode == 0 then
-    -- overview: track + division + swing
-    screen.font_size(7)
     screen.level(15)
     screen.move(2, 9); screen.text("Track " .. ti)
     screen.level(4)
-    screen.move(128, 9)
+    screen.move(126, 9)
     if not is_playing then screen.text_right("stopped")
     elseif tracks[ti].muted then screen.text_right("muted") end
+    rule(12)
 
-    screen.level(3)
-    screen.line_width(0.5)
-    screen.move(0, 12); screen.line(128, 12); screen.stroke()
+    screen.level(2)
+    screen.line_width(1)
     screen.move(64, 12); screen.line(64, 64); screen.stroke()
 
     local div_name = division_names[params:get("t" .. ti .. "_div")]
     local swing    = params:get("t" .. ti .. "_swing")
 
-    screen.level(8); screen.font_size(5)
-    screen.move(2, 26); screen.text("division")
-    screen.level(15); screen.font_size(9)
-    screen.move(2, 42); screen.text(div_name)
-
-    screen.level(8); screen.font_size(5)
-    screen.move(66, 26); screen.text("swing")
-    screen.level(15); screen.font_size(9)
-    screen.move(66, 42); screen.text(swing .. "%")
+    screen.level(4);  screen.move(2,  24); screen.text("division")
+    screen.level(15); screen.move(2,  38); screen.text(div_name)
+    screen.level(4);  screen.move(66, 24); screen.text("swing")
+    screen.level(15); screen.move(66, 38); screen.text(swing .. "%")
 
   elseif gen_mode == 1 then
     header("notes")
     local scale_name = scale_abbr(SCALES[params:get("t"..ti.."_scale")].name)
     local root_name  = NOTE_NAMES[params:get("t"..ti.."_root")]
-    screen.font_size(9); screen.level(15)
-    screen.move(2, 32); screen.text(scale_name)
-    screen.move(2, 46); screen.text(root_name)
-    screen.font_size(5); screen.level(3)
-    screen.move(2, 56); screen.text("e2 scale   e3 root")
-    screen.level(6); screen.move(128, 64); screen.text_right("k3 generate")
+    screen.level(15)
+    screen.move(2, 28); screen.text(scale_name)
+    screen.move(2, 40); screen.text(root_name)
+    hints("e2 scale  e3 root", "k3 gen")
 
   elseif gen_mode == 2 then
     header("velocity")
     local lo = params:get("t"..ti.."_vel_min")
     local hi = params:get("t"..ti.."_vel_max")
-    screen.font_size(9); screen.level(15)
-    screen.move(2, 38); screen.text(lo .. " — " .. hi)
-    screen.font_size(5); screen.level(3)
-    screen.move(2, 56); screen.text("e2 min   e3 max")
-    screen.level(6); screen.move(128, 64); screen.text_right("k3 generate")
+    screen.level(15)
+    screen.move(2, 34); screen.text(lo .. " - " .. hi)
+    hints("e2 min  e3 max", "k3 gen")
 
   elseif gen_mode == 3 then
     header("trigs")
     local density = params:get("t"..ti.."_density")
-    screen.font_size(9); screen.level(15)
-    screen.move(2, 38); screen.text(density .. "%")
-    screen.font_size(5); screen.level(3)
-    screen.move(2, 56); screen.text("e2 density")
-    screen.level(6); screen.move(128, 64); screen.text_right("k3 generate")
+    screen.level(15)
+    screen.move(2, 34); screen.text(density .. "%")
+    hints("e2 density", "k3 gen")
 
   elseif gen_mode == 4 then
     header("gate")
     local lo = params:get("t"..ti.."_gate_min")
     local hi = params:get("t"..ti.."_gate_max")
-    screen.font_size(9); screen.level(15)
-    screen.move(2, 38); screen.text(string.format("%.2f — %.2f b", lo, hi))
-    screen.font_size(5); screen.level(3)
-    screen.move(2, 56); screen.text("e2 min   e3 max")
-    screen.level(6); screen.move(128, 64); screen.text_right("k3 generate")
+    screen.level(15)
+    screen.move(2, 34); screen.text(string.format("%.2f - %.2f b", lo, hi))
+    hints("e2 min  e3 max", "k3 gen")
 
   elseif gen_mode == 5 then
     header("division")
-    screen.font_size(12); screen.level(15)
-    screen.move(2, 46); screen.text(division_names[params:get("t"..ti.."_div")])
-    screen.font_size(5); screen.level(3)
-    screen.move(2, 60); screen.text("e2 / e3 adjust")
+    screen.level(15)
+    screen.move(2, 38); screen.text(division_names[params:get("t"..ti.."_div")])
+    hints("e2 / e3")
 
   elseif gen_mode == 6 then
     header("swing")
-    screen.font_size(12); screen.level(15)
-    screen.move(2, 46); screen.text(params:get("t"..ti.."_swing") .. "%")
-    screen.font_size(5); screen.level(3)
-    screen.move(2, 60); screen.text("e2 / e3 adjust   50=straight")
+    screen.level(15)
+    screen.move(2, 38); screen.text(params:get("t"..ti.."_swing") .. "%")
+    hints("e2 / e3  (50=straight)")
   end
 
   screen.update()
