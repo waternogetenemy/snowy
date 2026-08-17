@@ -35,8 +35,8 @@ local TRACK_START_ROW = 3
 local MUTE_ROW       = 7
 local SELECT_ROW     = 8
 
-local divisions      = {4, 2, 1, 1/2, 1/4, 1/8, 1/16, 1/32}
-local division_names = {"4 beats","2 beats","1 beat","1/2","1/4","1/8","1/16","1/32"}
+local divisions      = {1/32, 1/16, 1/8, 1/4, 1/2, 1, 2, 4}
+local division_names = {"1/32","1/16","1/8","1/4","1/2","1 beat","2 beats","4 beats"}
 
 -- build scale list from musicutil, strip trailing octave
 local SCALES = {}
@@ -66,6 +66,8 @@ for i = 1, NUM_TRACKS do
     gates      = {},
     playhead   = 0,
     muted      = false,
+    loop_start = 1,
+    loop_end   = NUM_STEPS,
   }
   for s = 1, NUM_STEPS do
     tracks[i].steps[s]      = false
@@ -74,6 +76,10 @@ for i = 1, NUM_TRACKS do
     tracks[i].gates[s]      = 0.5
   end
 end
+
+-- hold state for loop point selection
+local row_held     = {}  -- row_held[row] = col currently held, or nil
+local row_loop_set = {}  -- true if the held press was used to set a loop range
 
 -- -------------------------------------------------------
 -- generation
@@ -187,7 +193,7 @@ local function setup_params()
     params:add_control("t" .. i .. "_gate_max", "Gate Max",
       controlspec.new(0.0625, 4.0, "lin", 0.0625, 1.0, "b"))
 
-    params:add_option("t" .. i .. "_div", "Division", division_names, 3)
+    params:add_option("t" .. i .. "_div", "Division", division_names, 2)
 
     nb:add_param("t" .. i .. "_voice", "Track " .. i)
 
@@ -217,8 +223,14 @@ local function setup_lattice()
         if not is_playing then return end
         for i = 1, NUM_TRACKS do
           if params:get("t" .. i .. "_div") == di then
-            local t    = tracks[i]
-            t.playhead = (t.playhead % NUM_STEPS) + 1
+            local t = tracks[i]
+            local lo = t.loop_start
+            local hi = t.loop_end
+            if t.playhead < lo or t.playhead >= hi then
+              t.playhead = lo
+            else
+              t.playhead = t.playhead + 1
+            end
             local step = t.playhead
             if t.steps[step] and not t.muted then
               local note = t.notes[step]
@@ -262,15 +274,24 @@ function grid_redraw()
     local row = TRACK_START_ROW + (i - 1)
     local t   = tracks[i]
     for s = 1, NUM_STEPS do
-      local is_head = (s == t.playhead)
-      local has_trig = t.steps[s]
+      local is_head    = (s == t.playhead)
+      local has_trig   = t.steps[s]
+      local in_loop    = (s >= t.loop_start and s <= t.loop_end)
+      local is_loop_edge = (s == t.loop_start or s == t.loop_end)
+        and (t.loop_start ~= 1 or t.loop_end ~= NUM_STEPS)
       local br
       if is_head and has_trig then
         br = 15
       elseif is_head then
         br = 6
-      elseif has_trig then
+      elseif has_trig and in_loop then
         br = (i == selected_track) and 8 or 4
+      elseif has_trig then
+        br = 2
+      elseif is_loop_edge then
+        br = 3
+      elseif in_loop then
+        br = 0
       else
         br = 0
       end
@@ -414,7 +435,22 @@ end
 -- grid input
 -- -------------------------------------------------------
 g.key = function(col, row, z)
-  if z == 0 then return end
+  -- handle key-up for track rows (loop point release)
+  if z == 0 then
+    if row >= TRACK_START_ROW and row < TRACK_START_ROW + NUM_TRACKS then
+      if row_held[row] == col then
+        if not row_loop_set[row] then
+          -- single tap: toggle trig
+          local ti = row - TRACK_START_ROW + 1
+          tracks[ti].steps[col] = not tracks[ti].steps[col]
+          grid_redraw()
+        end
+        row_held[row]     = nil
+        row_loop_set[row] = false
+      end
+    end
+    return
+  end
 
   if row == GEN_ROW then
     if     col == 1 then generate_notes(selected_track)
@@ -427,8 +463,19 @@ g.key = function(col, row, z)
   elseif row >= TRACK_START_ROW and row < TRACK_START_ROW + NUM_TRACKS then
     local ti = row - TRACK_START_ROW + 1
     if col >= 1 and col <= NUM_STEPS then
-      tracks[ti].steps[col] = not tracks[ti].steps[col]
-      grid_redraw()
+      if row_held[row] ~= nil then
+        -- second key while holding: set loop range
+        local lo = math.min(row_held[row], col)
+        local hi = math.max(row_held[row], col)
+        tracks[ti].loop_start = lo
+        tracks[ti].loop_end   = hi
+        row_loop_set[row]     = true
+        grid_redraw()
+      else
+        -- first press: hold and wait for key-up or second press
+        row_held[row]     = col
+        row_loop_set[row] = false
+      end
     end
 
   elseif row == MUTE_ROW then
