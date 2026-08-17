@@ -1,28 +1,454 @@
 -- snowy: 4 track generative sequencer
 -- by robbiesleftboot
+--
+-- grid:
+--   row 1       : generate buttons (cols 1-4: notes, vel, trigs, gates)
+--   rows 3-6    : track steps (row 3 = track 1, etc.)
+--   row 7       : mutes (cols 1-4)
+--   row 8       : track select (cols 1-4)
+--
+-- encoders:
+--   e1          : select param row
+--   e2          : adjust left/first value of selected row
+--   e3          : adjust right/second value (or division on density row)
+--
+-- keys:
+--   k2          : panic (all notes off)
+--   k3          : play / stop
 
 engine.name = 'None'
 
+local nb = include("lib/nb/lib/nb")
+local musicutil = require('musicutil')
+local lattice = require('lattice')
+
 local g = grid.connect()
 
-function init()
+-- -------------------------------------------------------
+-- constants
+-- -------------------------------------------------------
+local NUM_TRACKS = 4
+local NUM_STEPS  = 16
+
+local GEN_ROW        = 1
+local TRACK_START_ROW = 3
+local MUTE_ROW       = 7
+local SELECT_ROW     = 8
+
+local divisions      = {4, 2, 1, 1/2, 1/4, 1/8, 1/16, 1/32}
+local division_names = {"4 beats","2 beats","1 beat","1/2","1/4","1/8","1/16","1/32"}
+
+-- build scale list from musicutil, strip trailing octave
+local SCALES = {}
+for _, s in ipairs(musicutil.SCALES) do
+  local ivs = {}
+  for _, v in ipairs(s.intervals) do
+    if v < 12 then ivs[#ivs+1] = v end
+  end
+  SCALES[#SCALES+1] = {name = s.name, intervals = ivs}
+end
+
+local NOTE_NAMES = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"}
+
+-- -------------------------------------------------------
+-- state
+-- -------------------------------------------------------
+local selected_track = 1
+local screen_cursor  = 1  -- 1=scale/root 2=vel 3=density 4=gate
+local is_playing     = true
+
+local tracks = {}
+for i = 1, NUM_TRACKS do
+  tracks[i] = {
+    steps      = {},
+    notes      = {},
+    velocities = {},
+    gates      = {},
+    playhead   = 0,
+    muted      = false,
+  }
+  for s = 1, NUM_STEPS do
+    tracks[i].steps[s]      = false
+    tracks[i].notes[s]      = 60
+    tracks[i].velocities[s] = 80
+    tracks[i].gates[s]      = 0.5
+  end
+end
+
+-- -------------------------------------------------------
+-- generation
+-- -------------------------------------------------------
+local function generate_notes(i)
+  local t         = tracks[i]
+  local scale_idx = params:get("t" .. i .. "_scale")
+  local root      = params:get("t" .. i .. "_root") - 1  -- 0-11
+  local intervals = SCALES[scale_idx].intervals
+  local n         = #intervals
+  local base      = 48 + root  -- start at octave 3
+  for s = 1, NUM_STEPS do
+    local degree = math.random(0, n * 3 - 1)
+    local oct    = math.floor(degree / n)
+    local idx    = (degree % n) + 1
+    t.notes[s]   = math.max(0, math.min(127, base + oct * 12 + intervals[idx] - intervals[1]))
+  end
+end
+
+local function generate_velocities(i)
+  local t  = tracks[i]
+  local lo = params:get("t" .. i .. "_vel_min")
+  local hi = params:get("t" .. i .. "_vel_max")
+  if lo > hi then lo, hi = hi, lo end
+  for s = 1, NUM_STEPS do
+    t.velocities[s] = math.random(lo, hi)
+  end
+end
+
+local function generate_trigs(i)
+  local t       = tracks[i]
+  local density = params:get("t" .. i .. "_density") / 100
+  for s = 1, NUM_STEPS do
+    t.steps[s] = (math.random() < density)
+  end
+end
+
+local function generate_gates(i)
+  local t  = tracks[i]
+  local lo = params:get("t" .. i .. "_gate_min")
+  local hi = params:get("t" .. i .. "_gate_max")
+  if lo > hi then lo, hi = hi, lo end
+  for s = 1, NUM_STEPS do
+    t.gates[s] = lo + math.random() * (hi - lo)
+  end
+end
+
+-- -------------------------------------------------------
+-- MIDI
+-- -------------------------------------------------------
+local midi_out = nil
+
+local function setup_midi()
+  midi_out = midi.connect(params:get("midi_out_device"))
+end
+
+-- -------------------------------------------------------
+-- note on / off
+-- -------------------------------------------------------
+local function track_note_on(i, note, vel)
+  local player = params:lookup_param("t" .. i .. "_voice"):get_player()
+  if player then player:note_on(note, vel / 127) end
+  if midi_out then
+    midi_out:note_on(note, vel, params:get("t" .. i .. "_midi_ch"))
+  end
+end
+
+local function track_note_off(i, note)
+  local player = params:lookup_param("t" .. i .. "_voice"):get_player()
+  if player then player:note_off(note) end
+  if midi_out then
+    midi_out:note_off(note, 0, params:get("t" .. i .. "_midi_ch"))
+  end
+end
+
+local function all_notes_off()
+  for i = 1, NUM_TRACKS do
+    local player = params:lookup_param("t" .. i .. "_voice"):get_player()
+    if player then player:note_off() end
+  end
+  if midi_out then
+    for ch = 1, 16 do midi_out:cc(123, 0, ch) end
+  end
+end
+
+-- -------------------------------------------------------
+-- params
+-- -------------------------------------------------------
+local function setup_params()
   params:add_separator("SNOWY")
+
+  for i = 1, NUM_TRACKS do
+    params:add_separator("TRACK " .. i)
+
+    local scale_names   = {}
+    local default_scale = 1
+    for j, s in ipairs(SCALES) do
+      scale_names[#scale_names+1] = s.name
+      if s.name == "Natural Minor" then default_scale = j end
+    end
+    params:add_option("t" .. i .. "_scale", "Scale", scale_names, default_scale)
+    params:add_option("t" .. i .. "_root",  "Root",  NOTE_NAMES,  1)
+
+    params:add_number("t" .. i .. "_vel_min", "Vel Min", 0, 127, 40)
+    params:add_number("t" .. i .. "_vel_max", "Vel Max", 0, 127, 100)
+
+    params:add_number("t" .. i .. "_density", "Density %", 0, 100, 50)
+
+    params:add_control("t" .. i .. "_gate_min", "Gate Min",
+      controlspec.new(0.0625, 4.0, "lin", 0.0625, 0.25, "b"))
+    params:add_control("t" .. i .. "_gate_max", "Gate Max",
+      controlspec.new(0.0625, 4.0, "lin", 0.0625, 1.0, "b"))
+
+    params:add_option("t" .. i .. "_div", "Division", division_names, 3)
+
+    nb:add_param("t" .. i .. "_voice", "Track " .. i)
+
+    params:add_number("t" .. i .. "_midi_ch", "MIDI Ch", 1, 16, i)
+  end
+
+  params:add_separator("MIDI")
+  params:add_number("midi_out_device", "MIDI Out Device", 1, 4, 1)
+  params:set_action("midi_out_device", function() setup_midi() end)
+
+  nb:add_player_params()
   params:bang()
+end
+
+-- -------------------------------------------------------
+-- lattice
+-- -------------------------------------------------------
+local seq_lattice = nil
+
+local function setup_lattice()
+  seq_lattice = lattice:new{ppqn = 96}
+
+  for div_idx, div in ipairs(divisions) do
+    local di = div_idx
+    seq_lattice:new_sprocket({
+      action = function()
+        if not is_playing then return end
+        for i = 1, NUM_TRACKS do
+          if params:get("t" .. i .. "_div") == di then
+            local t    = tracks[i]
+            t.playhead = (t.playhead % NUM_STEPS) + 1
+            local step = t.playhead
+            if t.steps[step] and not t.muted then
+              local note = t.notes[step]
+              local vel  = t.velocities[step]
+              local gate = t.gates[step]
+              local ii   = i
+              track_note_on(ii, note, vel)
+              clock.run(function()
+                clock.sleep(gate * 60 / params:get("clock_tempo"))
+                track_note_off(ii, note)
+              end)
+            end
+          end
+        end
+        grid_redraw()
+      end,
+      division = div
+    })
+  end
+
+  seq_lattice:hard_restart()
+end
+
+-- -------------------------------------------------------
+-- grid
+-- -------------------------------------------------------
+function grid_redraw()
+  if not g then return end
+  g:all(0)
+
+  -- row 1: generate buttons (cols 1-4)
+  for col = 1, 4 do
+    g:led(col, GEN_ROW, 4)
+  end
+
+  -- rows 3-6: track steps
+  for i = 1, NUM_TRACKS do
+    local row = TRACK_START_ROW + (i - 1)
+    local t   = tracks[i]
+    for s = 1, NUM_STEPS do
+      local is_head = (s == t.playhead)
+      local has_trig = t.steps[s]
+      local br
+      if is_head and has_trig then
+        br = 15
+      elseif is_head then
+        br = 6
+      elseif has_trig then
+        br = (i == selected_track) and 8 or 4
+      else
+        br = 0
+      end
+      g:led(s, row, br)
+    end
+  end
+
+  -- row 7: mutes (cols 1-4)
+  for i = 1, NUM_TRACKS do
+    g:led(i, MUTE_ROW, tracks[i].muted and 12 or 2)
+  end
+
+  -- row 8: track select (cols 1-4)
+  for i = 1, NUM_TRACKS do
+    g:led(i, SELECT_ROW, (i == selected_track) and 15 or 4)
+  end
+
+  g:refresh()
+end
+
+-- -------------------------------------------------------
+-- screen
+-- -------------------------------------------------------
+local function scale_abbr(name)
+  if #name <= 12 then return name end
+  return string.gsub(string.sub(name, 1, 11), "%s+$", "") .. "."
 end
 
 function redraw()
   screen.clear()
-  screen.move(64, 32)
+  screen.aa(1)
+  screen.font_face(1)
+  screen.font_size(7)
+
+  local ti = selected_track
+
+  -- header
   screen.level(15)
-  screen.text_center("snowy")
+  screen.move(2, 9)
+  screen.text("Track " .. ti)
+  screen.level(5)
+  screen.move(128, 9)
+  if not is_playing then
+    screen.text_right("stopped")
+  elseif tracks[ti].muted then
+    screen.text_right("muted")
+  end
+
+  -- divider
+  screen.level(3)
+  screen.line_width(0.5)
+  screen.move(0, 12)
+  screen.line(128, 12)
+  screen.stroke()
+
+  local scale_name = scale_abbr(SCALES[params:get("t" .. ti .. "_scale")].name)
+  local root_name  = NOTE_NAMES[params:get("t" .. ti .. "_root")]
+  local vel_lo     = params:get("t" .. ti .. "_vel_min")
+  local vel_hi     = params:get("t" .. ti .. "_vel_max")
+  local density    = params:get("t" .. ti .. "_density")
+  local gate_lo    = params:get("t" .. ti .. "_gate_min")
+  local gate_hi    = params:get("t" .. ti .. "_gate_max")
+  local div_name   = division_names[params:get("t" .. ti .. "_div")]
+
+  local row_text = {
+    scale_name .. "  " .. root_name,
+    "vel " .. vel_lo .. " - " .. vel_hi,
+    "density " .. density .. "%  " .. div_name,
+    string.format("gate %.2f - %.2f b", gate_lo, gate_hi),
+  }
+  local row_y = {23, 34, 45, 56}
+
+  for j = 1, 4 do
+    screen.level(j == screen_cursor and 15 or 5)
+    screen.move(10, row_y[j])
+    screen.text(row_text[j])
+  end
+
+  -- cursor
+  screen.level(15)
+  screen.move(3, row_y[screen_cursor])
+  screen.text(">")
+
   screen.update()
 end
 
-function key(n, z)
-end
-
+-- -------------------------------------------------------
+-- encoders
+-- -------------------------------------------------------
 function enc(n, d)
+  local ti = selected_track
+  if n == 1 then
+    screen_cursor = ((screen_cursor - 1 + d) % 4) + 1
+  elseif n == 2 then
+    if     screen_cursor == 1 then params:delta("t" .. ti .. "_scale",   d)
+    elseif screen_cursor == 2 then params:delta("t" .. ti .. "_vel_min", d)
+    elseif screen_cursor == 3 then params:delta("t" .. ti .. "_density", d)
+    elseif screen_cursor == 4 then params:delta("t" .. ti .. "_gate_min", d)
+    end
+  elseif n == 3 then
+    if     screen_cursor == 1 then params:delta("t" .. ti .. "_root",     d)
+    elseif screen_cursor == 2 then params:delta("t" .. ti .. "_vel_max",  d)
+    elseif screen_cursor == 3 then params:delta("t" .. ti .. "_div",      d)
+    elseif screen_cursor == 4 then params:delta("t" .. ti .. "_gate_max", d)
+    end
+  end
+  redraw()
 end
 
-function grid.key(x, y, z)
+-- -------------------------------------------------------
+-- keys
+-- -------------------------------------------------------
+function key(n, z)
+  if z ~= 1 then return end
+  if n == 2 then
+    all_notes_off()
+  elseif n == 3 then
+    is_playing = not is_playing
+    if not is_playing then all_notes_off() end
+    redraw()
+    grid_redraw()
+  end
+end
+
+-- -------------------------------------------------------
+-- grid input
+-- -------------------------------------------------------
+g.key = function(col, row, z)
+  if z == 0 then return end
+
+  if row == GEN_ROW then
+    if     col == 1 then generate_notes(selected_track)
+    elseif col == 2 then generate_velocities(selected_track)
+    elseif col == 3 then generate_trigs(selected_track)
+    elseif col == 4 then generate_gates(selected_track)
+    end
+    grid_redraw()
+
+  elseif row >= TRACK_START_ROW and row < TRACK_START_ROW + NUM_TRACKS then
+    local ti = row - TRACK_START_ROW + 1
+    if col >= 1 and col <= NUM_STEPS then
+      tracks[ti].steps[col] = not tracks[ti].steps[col]
+      grid_redraw()
+    end
+
+  elseif row == MUTE_ROW then
+    if col >= 1 and col <= NUM_TRACKS then
+      tracks[col].muted = not tracks[col].muted
+      grid_redraw()
+      redraw()
+    end
+
+  elseif row == SELECT_ROW then
+    if col >= 1 and col <= NUM_TRACKS then
+      selected_track = col
+      redraw()
+      grid_redraw()
+    end
+  end
+end
+
+-- -------------------------------------------------------
+-- init
+-- -------------------------------------------------------
+function init()
+  nb:init()
+  setup_params()
+  setup_midi()
+  setup_lattice()
+
+  for i = 1, NUM_TRACKS do
+    generate_notes(i)
+    generate_velocities(i)
+    generate_trigs(i)
+    generate_gates(i)
+  end
+
+  grid_redraw()
+  redraw()
+end
+
+function cleanup()
+  all_notes_off()
 end
