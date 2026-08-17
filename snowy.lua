@@ -60,8 +60,11 @@ local selected_track = 1
 local is_playing     = true
 local gen_mode       = 0  -- 0=overview, 1=notes, 2=vel, 3=trigs, 4=gates, 5=division, 6=swing
 
+local gen_dirty = {}  -- gen_dirty[track][1-4]: param changed since last K3
+
 local tracks = {}
 for i = 1, NUM_TRACKS do
+  gen_dirty[i] = {false, false, false, false}
   tracks[i] = {
     steps      = {},
     notes      = {},
@@ -460,14 +463,18 @@ function enc(n, d)
   elseif gen_mode == 1 then
     if     n == 2 then params:delta("t" .. ti .. "_scale", d)
     elseif n == 3 then params:delta("t" .. ti .. "_root",  d) end
+    gen_dirty[ti][1] = true
   elseif gen_mode == 2 then
     if     n == 2 then params:delta("t" .. ti .. "_vel_min", d)
     elseif n == 3 then params:delta("t" .. ti .. "_vel_max", d) end
+    gen_dirty[ti][2] = true
   elseif gen_mode == 3 then
     params:delta("t" .. ti .. "_density", d)
+    gen_dirty[ti][3] = true
   elseif gen_mode == 4 then
     if     n == 2 then params:delta("t" .. ti .. "_gate_min", d)
     elseif n == 3 then params:delta("t" .. ti .. "_gate_max", d) end
+    gen_dirty[ti][4] = true
   elseif gen_mode == 5 then
     params:delta("t" .. ti .. "_div", d)
   elseif gen_mode == 6 then
@@ -484,10 +491,14 @@ function key(n, z)
   if n == 2 then
     all_notes_off()
   elseif n == 3 then
-    if gen_mode == 1 then generate_notes(selected_track)
-    elseif gen_mode == 2 then generate_velocities(selected_track)
-    elseif gen_mode == 3 then generate_trigs(selected_track)
-    elseif gen_mode == 4 then generate_gates(selected_track)
+    if gen_mode >= 1 and gen_mode <= 4 then
+      local ti = selected_track
+      gen_dirty[ti][gen_mode] = true  -- always include current screen
+      if gen_dirty[ti][1] then generate_notes(ti) end
+      if gen_dirty[ti][2] then generate_velocities(ti) end
+      if gen_dirty[ti][3] then generate_trigs(ti) end
+      if gen_dirty[ti][4] then generate_gates(ti) end
+      for j = 1, 4 do gen_dirty[ti][j] = false end
     else
       is_playing = not is_playing
       if not is_playing then all_notes_off() else restart_all() end
