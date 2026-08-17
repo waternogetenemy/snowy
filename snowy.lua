@@ -280,10 +280,11 @@ function grid_redraw()
     g:led(i, MUTE_ROW, tracks[i].muted and 12 or 2)
   end
 
-  -- row 8: track select (cols 1-4)
+  -- row 8: track select (cols 1-4), play/stop (col 16)
   for i = 1, NUM_TRACKS do
     g:led(i, SELECT_ROW, (i == selected_track) and 15 or 4)
   end
+  g:led(16, SELECT_ROW, is_playing and 15 or 4)
 
   g:refresh()
 end
@@ -435,7 +436,12 @@ g.key = function(col, row, z)
     end
 
   elseif row == SELECT_ROW then
-    if col >= 1 and col <= NUM_TRACKS then
+    if col == 16 then
+      is_playing = not is_playing
+      if not is_playing then all_notes_off() end
+      redraw()
+      grid_redraw()
+    elseif col >= 1 and col <= NUM_TRACKS then
       selected_track = col
       redraw()
       grid_redraw()
