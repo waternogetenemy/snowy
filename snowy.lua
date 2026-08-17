@@ -3,7 +3,7 @@
 --
 -- grid:
 --   row 1       : gen buttons (cols 1-4: notes, vel, trigs, gates)
---                 col 6: division view  col 7: swing view
+--                 col 6: division  col 7: swing  col 8: octave
 --   rows 3-6    : track steps (row 3 = track 1, etc.)
 --   row 7       : mutes (cols 1-4)
 --   row 8       : track select (cols 1-4)  col 16: play/stop
@@ -58,7 +58,7 @@ local NOTE_NAMES = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"}
 -- -------------------------------------------------------
 local selected_track = 1
 local is_playing     = true
-local gen_mode       = 0  -- 0=overview, 1=notes, 2=vel, 3=trigs, 4=gates, 5=division, 6=swing
+local gen_mode       = 0  -- 0=overview, 1=notes, 2=vel, 3=trigs, 4=gates, 5=div, 6=swing, 7=octave
 
 local gen_dirty = {}  -- gen_dirty[track][1-4]: param changed since last K3
 
@@ -210,7 +210,8 @@ local function setup_params()
 
     params:add_option("t" .. i .. "_div", "Division", division_names, 2)
 
-    params:add_number("t" .. i .. "_swing", "Swing", 0, 100, 50)
+    params:add_number("t" .. i .. "_swing",  "Swing",  0, 100, 50)
+    params:add_number("t" .. i .. "_octave", "Octave", -3, 3,  0)
 
     nb:add_param("t" .. i .. "_voice", "Track " .. i)
 
@@ -250,7 +251,7 @@ local function setup_lattice()
             end
             local step = t.playhead
             if t.steps[step] and not t.muted then
-              local note     = t.notes[step]
+              local note     = math.max(0, math.min(127, t.notes[step] + params:get("t" .. i .. "_octave") * 12))
               local vel      = t.velocities[step]
               local gate     = t.gates[step]
               local ii       = i
@@ -298,6 +299,7 @@ function grid_redraw()
   end
   g:led(6, GEN_ROW, (gen_mode == 5) and 15 or 4)
   g:led(7, GEN_ROW, (gen_mode == 6) and 15 or 4)
+  g:led(8, GEN_ROW, (gen_mode == 7) and 15 or 4)
 
   -- rows 3-6: track steps
   for i = 1, NUM_TRACKS do
@@ -443,6 +445,13 @@ function redraw()
     screen.level(15)
     screen.move(2, 38); screen.text(params:get("t"..ti.."_swing") .. "%")
     hints("e2 / e3  (50=straight)")
+
+  elseif gen_mode == 7 then
+    header("octave")
+    local oct = params:get("t"..ti.."_octave")
+    screen.level(15)
+    screen.move(2, 38); screen.text((oct > 0 and "+" or "") .. oct)
+    hints("e2 / e3 adjust")
   end
 
   screen.update()
@@ -479,6 +488,8 @@ function enc(n, d)
     params:delta("t" .. ti .. "_div", d)
   elseif gen_mode == 6 then
     params:delta("t" .. ti .. "_swing", d)
+  elseif gen_mode == 7 then
+    params:delta("t" .. ti .. "_octave", d)
   end
   redraw()
 end
@@ -537,6 +548,8 @@ g.key = function(col, row, z)
       gen_mode = (gen_mode == 5) and 0 or 5
     elseif col == 7 then
       gen_mode = (gen_mode == 6) and 0 or 6
+    elseif col == 8 then
+      gen_mode = (gen_mode == 7) and 0 or 7
     else
       changed = false
     end
