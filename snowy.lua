@@ -2,19 +2,19 @@
 -- by robbiesleftboot
 --
 -- grid:
---   row 1       : generate buttons (cols 1-4: notes, vel, trigs, gates)
+--   row 1       : gen buttons (cols 1-4: notes, vel, trigs, gates)
+--                 col 6: division view  col 7: swing view
 --   rows 3-6    : track steps (row 3 = track 1, etc.)
 --   row 7       : mutes (cols 1-4)
---   row 8       : track select (cols 1-4)
+--   row 8       : track select (cols 1-4)  col 16: play/stop
 --
 -- encoders:
---   e1          : select param row
---   e2          : adjust left/first value of selected row
---   e3          : adjust right/second value (or division on density row)
+--   e1          : select track
+--   e2 / e3     : adjust params for current view
 --
 -- keys:
 --   k2          : panic (all notes off)
---   k3          : play / stop
+--   k3          : generate (in gen views) / play-stop (in div/swing/default)
 
 engine.name = 'None'
 
@@ -54,9 +54,8 @@ local NOTE_NAMES = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"}
 -- state
 -- -------------------------------------------------------
 local selected_track = 1
-local screen_cursor  = 1  -- 1=scale/root 2=vel 3=density 4=gate 5=division 6=swing
 local is_playing     = true
-local gen_mode       = 0  -- 0=normal, 1=notes, 2=velocity, 3=trigs, 4=gates
+local gen_mode       = 0  -- 0=overview, 1=notes, 2=vel, 3=trigs, 4=gates, 5=division, 6=swing
 
 local tracks = {}
 for i = 1, NUM_TRACKS do
@@ -284,10 +283,12 @@ function grid_redraw()
   if not g then return end
   g:all(0)
 
-  -- row 1: generate buttons (cols 1-4)
+  -- row 1: gen buttons cols 1-4, division col 6, swing col 7
   for col = 1, 4 do
     g:led(col, GEN_ROW, (col == gen_mode) and 15 or 4)
   end
+  g:led(6, GEN_ROW, (gen_mode == 5) and 15 or 4)
+  g:led(7, GEN_ROW, (gen_mode == 6) and 15 or 4)
 
   -- rows 3-6: track steps
   for i = 1, NUM_TRACKS do
@@ -348,137 +349,96 @@ function redraw()
 
   local ti = selected_track
 
-  -- gen mode screen
-  if gen_mode > 0 then
-    local titles = {"notes","velocity","trigs","gate"}
+  local function header(label)
     screen.font_size(5)
     screen.level(4)
-    screen.move(2, 8)
-    screen.text(titles[gen_mode] .. "  —  track " .. ti)
+    screen.move(2, 8); screen.text(label .. "  —  track " .. ti)
     screen.level(3)
     screen.line_width(0.5)
     screen.move(0, 11); screen.line(128, 11); screen.stroke()
-
-    screen.font_size(9)
-    if gen_mode == 1 then
-      local scale_name = scale_abbr(SCALES[params:get("t"..ti.."_scale")].name)
-      local root_name  = NOTE_NAMES[params:get("t"..ti.."_root")]
-      screen.level(15)
-      screen.move(2, 32); screen.text(scale_name)
-      screen.move(2, 46); screen.text(root_name)
-      screen.font_size(5); screen.level(3)
-      screen.move(2, 56); screen.text("e2 scale   e3 root")
-    elseif gen_mode == 2 then
-      local lo = params:get("t"..ti.."_vel_min")
-      local hi = params:get("t"..ti.."_vel_max")
-      screen.level(15)
-      screen.move(2, 36); screen.text(lo .. " — " .. hi)
-      screen.font_size(5); screen.level(3)
-      screen.move(2, 56); screen.text("e2 min   e3 max")
-    elseif gen_mode == 3 then
-      local density = params:get("t"..ti.."_density")
-      screen.level(15)
-      screen.move(2, 36); screen.text(density .. "%")
-      screen.font_size(5); screen.level(3)
-      screen.move(2, 56); screen.text("e2 density")
-    elseif gen_mode == 4 then
-      local lo = params:get("t"..ti.."_gate_min")
-      local hi = params:get("t"..ti.."_gate_max")
-      screen.level(15)
-      screen.move(2, 36); screen.text(string.format("%.2f — %.2f b", lo, hi))
-      screen.font_size(5); screen.level(3)
-      screen.move(2, 56); screen.text("e2 min   e3 max")
-    end
-
-    screen.level(6)
-    screen.font_size(5)
-    screen.move(128, 64); screen.text_right("k3 generate")
-    screen.update()
-    return
   end
 
-  local lv  = function(q) return q == screen_cursor and 15 or 3 end
-
-  -- shared header
-  screen.font_size(7)
-  screen.level(15)
-  screen.move(2, 9)
-  screen.text("Track " .. ti)
-  screen.level(4)
-  screen.move(128, 9)
-  if not is_playing then
-    screen.text_right("stopped")
-  elseif tracks[ti].muted then
-    screen.text_right("muted")
-  end
-
-  -- header divider
-  screen.level(3)
-  screen.line_width(0.5)
-  screen.move(0, 12); screen.line(128, 12); screen.stroke()
-
-  if screen_cursor <= 4 then
-    -- PAGE 1: four quadrants
-    screen.move(64, 12); screen.line(64,  64); screen.stroke()
-    screen.move(0,  38); screen.line(128, 38); screen.stroke()
-
-    local scale_name = scale_abbr(SCALES[params:get("t" .. ti .. "_scale")].name)
-    local root_name  = NOTE_NAMES[params:get("t" .. ti .. "_root")]
-    local vel_lo     = params:get("t" .. ti .. "_vel_min")
-    local vel_hi     = params:get("t" .. ti .. "_vel_max")
-    local density    = params:get("t" .. ti .. "_density")
-    local gate_lo    = params:get("t" .. ti .. "_gate_min")
-    local gate_hi    = params:get("t" .. ti .. "_gate_max")
-
-    -- TL: notes
-    screen.level(lv(1))
-    screen.font_size(5)
-    screen.move(2, 20); screen.text("notes")
+  if gen_mode == 0 then
+    -- overview: track + division + swing
     screen.font_size(7)
-    screen.move(2, 29); screen.text(scale_name)
-    screen.move(2, 36); screen.text(root_name)
+    screen.level(15)
+    screen.move(2, 9); screen.text("Track " .. ti)
+    screen.level(4)
+    screen.move(128, 9)
+    if not is_playing then screen.text_right("stopped")
+    elseif tracks[ti].muted then screen.text_right("muted") end
 
-    -- TR: velocity
-    screen.level(lv(2))
-    screen.font_size(5)
-    screen.move(66, 20); screen.text("velocity")
-    screen.font_size(7)
-    screen.move(66, 29); screen.text(vel_lo .. " - " .. vel_hi)
-
-    -- BL: trigs
-    screen.level(lv(3))
-    screen.font_size(5)
-    screen.move(2, 46); screen.text("trigs")
-    screen.font_size(7)
-    screen.move(2, 57); screen.text(density .. "%")
-
-    -- BR: gate
-    screen.level(lv(4))
-    screen.font_size(5)
-    screen.move(66, 46); screen.text("gate (beats)")
-    screen.font_size(7)
-    screen.move(66, 57); screen.text(string.format("%.2f-%.2f", gate_lo, gate_hi))
-
-  else
-    -- PAGE 2: division + swing
+    screen.level(3)
+    screen.line_width(0.5)
+    screen.move(0, 12); screen.line(128, 12); screen.stroke()
     screen.move(64, 12); screen.line(64, 64); screen.stroke()
 
     local div_name = division_names[params:get("t" .. ti .. "_div")]
     local swing    = params:get("t" .. ti .. "_swing")
 
-    -- left: division
-    screen.level(lv(5))
-    screen.font_size(5)
+    screen.level(8); screen.font_size(5)
     screen.move(2, 26); screen.text("division")
-    screen.font_size(9)
+    screen.level(15); screen.font_size(9)
     screen.move(2, 42); screen.text(div_name)
 
-    -- right: swing
-    screen.level(lv(6))
-    screen.font_size(5)
+    screen.level(8); screen.font_size(5)
     screen.move(66, 26); screen.text("swing")
-    screen.font_size(9)
+    screen.level(15); screen.font_size(9)
     screen.move(66, 42); screen.text(swing .. "%")
+
+  elseif gen_mode == 1 then
+    header("notes")
+    local scale_name = scale_abbr(SCALES[params:get("t"..ti.."_scale")].name)
+    local root_name  = NOTE_NAMES[params:get("t"..ti.."_root")]
+    screen.font_size(9); screen.level(15)
+    screen.move(2, 32); screen.text(scale_name)
+    screen.move(2, 46); screen.text(root_name)
+    screen.font_size(5); screen.level(3)
+    screen.move(2, 56); screen.text("e2 scale   e3 root")
+    screen.level(6); screen.move(128, 64); screen.text_right("k3 generate")
+
+  elseif gen_mode == 2 then
+    header("velocity")
+    local lo = params:get("t"..ti.."_vel_min")
+    local hi = params:get("t"..ti.."_vel_max")
+    screen.font_size(9); screen.level(15)
+    screen.move(2, 38); screen.text(lo .. " — " .. hi)
+    screen.font_size(5); screen.level(3)
+    screen.move(2, 56); screen.text("e2 min   e3 max")
+    screen.level(6); screen.move(128, 64); screen.text_right("k3 generate")
+
+  elseif gen_mode == 3 then
+    header("trigs")
+    local density = params:get("t"..ti.."_density")
+    screen.font_size(9); screen.level(15)
+    screen.move(2, 38); screen.text(density .. "%")
+    screen.font_size(5); screen.level(3)
+    screen.move(2, 56); screen.text("e2 density")
+    screen.level(6); screen.move(128, 64); screen.text_right("k3 generate")
+
+  elseif gen_mode == 4 then
+    header("gate")
+    local lo = params:get("t"..ti.."_gate_min")
+    local hi = params:get("t"..ti.."_gate_max")
+    screen.font_size(9); screen.level(15)
+    screen.move(2, 38); screen.text(string.format("%.2f — %.2f b", lo, hi))
+    screen.font_size(5); screen.level(3)
+    screen.move(2, 56); screen.text("e2 min   e3 max")
+    screen.level(6); screen.move(128, 64); screen.text_right("k3 generate")
+
+  elseif gen_mode == 5 then
+    header("division")
+    screen.font_size(12); screen.level(15)
+    screen.move(2, 46); screen.text(division_names[params:get("t"..ti.."_div")])
+    screen.font_size(5); screen.level(3)
+    screen.move(2, 60); screen.text("e2 / e3 adjust")
+
+  elseif gen_mode == 6 then
+    header("swing")
+    screen.font_size(12); screen.level(15)
+    screen.move(2, 46); screen.text(params:get("t"..ti.."_swing") .. "%")
+    screen.font_size(5); screen.level(3)
+    screen.move(2, 60); screen.text("e2 / e3 adjust   50=straight")
   end
 
   screen.update()
@@ -489,40 +449,28 @@ end
 -- -------------------------------------------------------
 function enc(n, d)
   local ti = selected_track
-  if gen_mode > 0 then
-    if gen_mode == 1 then
-      if     n == 2 then params:delta("t" .. ti .. "_scale", d)
-      elseif n == 3 then params:delta("t" .. ti .. "_root",  d) end
-    elseif gen_mode == 2 then
-      if     n == 2 then params:delta("t" .. ti .. "_vel_min", d)
-      elseif n == 3 then params:delta("t" .. ti .. "_vel_max", d) end
-    elseif gen_mode == 3 then
-      if n == 2 then params:delta("t" .. ti .. "_density", d) end
-    elseif gen_mode == 4 then
-      if     n == 2 then params:delta("t" .. ti .. "_gate_min", d)
-      elseif n == 3 then params:delta("t" .. ti .. "_gate_max", d) end
-    end
-    redraw()
-    return
-  end
   if n == 1 then
-    screen_cursor = ((screen_cursor - 1 + d) % 6) + 1
-  elseif n == 2 then
-    if     screen_cursor == 1 then params:delta("t" .. ti .. "_scale",    d)
-    elseif screen_cursor == 2 then params:delta("t" .. ti .. "_vel_min",  d)
-    elseif screen_cursor == 3 then params:delta("t" .. ti .. "_density",  d)
-    elseif screen_cursor == 4 then params:delta("t" .. ti .. "_gate_min", d)
-    elseif screen_cursor == 5 then params:delta("t" .. ti .. "_div",      d)
-    elseif screen_cursor == 6 then params:delta("t" .. ti .. "_swing",    d)
-    end
-  elseif n == 3 then
-    if     screen_cursor == 1 then params:delta("t" .. ti .. "_root",     d)
-    elseif screen_cursor == 2 then params:delta("t" .. ti .. "_vel_max",  d)
-    elseif screen_cursor == 3 then params:delta("t" .. ti .. "_density",  d)
-    elseif screen_cursor == 4 then params:delta("t" .. ti .. "_gate_max", d)
-    elseif screen_cursor == 5 then params:delta("t" .. ti .. "_div",      d)
-    elseif screen_cursor == 6 then params:delta("t" .. ti .. "_swing",    d)
-    end
+    selected_track = ((selected_track - 1 + d) % NUM_TRACKS) + 1
+    redraw(); grid_redraw(); return
+  end
+  if gen_mode == 0 then
+    if     n == 2 then params:delta("t" .. ti .. "_div",   d)
+    elseif n == 3 then params:delta("t" .. ti .. "_swing", d) end
+  elseif gen_mode == 1 then
+    if     n == 2 then params:delta("t" .. ti .. "_scale", d)
+    elseif n == 3 then params:delta("t" .. ti .. "_root",  d) end
+  elseif gen_mode == 2 then
+    if     n == 2 then params:delta("t" .. ti .. "_vel_min", d)
+    elseif n == 3 then params:delta("t" .. ti .. "_vel_max", d) end
+  elseif gen_mode == 3 then
+    params:delta("t" .. ti .. "_density", d)
+  elseif gen_mode == 4 then
+    if     n == 2 then params:delta("t" .. ti .. "_gate_min", d)
+    elseif n == 3 then params:delta("t" .. ti .. "_gate_max", d) end
+  elseif gen_mode == 5 then
+    params:delta("t" .. ti .. "_div", d)
+  elseif gen_mode == 6 then
+    params:delta("t" .. ti .. "_swing", d)
   end
   redraw()
 end
@@ -535,13 +483,10 @@ function key(n, z)
   if n == 2 then
     all_notes_off()
   elseif n == 3 then
-    if gen_mode > 0 then
-      if     gen_mode == 1 then generate_notes(selected_track)
-      elseif gen_mode == 2 then generate_velocities(selected_track)
-      elseif gen_mode == 3 then generate_trigs(selected_track)
-      elseif gen_mode == 4 then generate_gates(selected_track)
-      end
-      gen_mode = 0
+    if gen_mode == 1 then generate_notes(selected_track)
+    elseif gen_mode == 2 then generate_velocities(selected_track)
+    elseif gen_mode == 3 then generate_trigs(selected_track)
+    elseif gen_mode == 4 then generate_gates(selected_track)
     else
       is_playing = not is_playing
       if not is_playing then all_notes_off() else restart_all() end
@@ -573,11 +518,17 @@ g.key = function(col, row, z)
   end
 
   if row == GEN_ROW then
+    local changed = true
     if col >= 1 and col <= 4 then
       gen_mode = (gen_mode == col) and 0 or col
-      redraw()
-      grid_redraw()
+    elseif col == 6 then
+      gen_mode = (gen_mode == 5) and 0 or 5
+    elseif col == 7 then
+      gen_mode = (gen_mode == 6) and 0 or 6
+    else
+      changed = false
     end
+    if changed then redraw(); grid_redraw() end
 
   elseif row >= TRACK_START_ROW and row < TRACK_START_ROW + NUM_TRACKS then
     local ti = row - TRACK_START_ROW + 1
