@@ -201,7 +201,7 @@ local function setup_params()
 
     params:add_option("t" .. i .. "_div", "Division", division_names, 2)
 
-    params:add_number("t" .. i .. "_swing", "Swing %", 0, 50, 0)
+    params:add_number("t" .. i .. "_swing", "Swing", 0, 100, 50)
 
     nb:add_param("t" .. i .. "_voice", "Track " .. i)
 
@@ -247,11 +247,16 @@ local function setup_lattice()
               local ii       = i
               local bpm      = params:get("clock_tempo")
               local step_s   = divisions[di] * 4 * (60 / bpm)
-              local swing_s  = (step % 2 == 0)
-                and (params:get("t" .. i .. "_swing") / 100 * step_s)
-                or 0
+              local swing    = params:get("t" .. i .. "_swing")
+              local offset   = (swing - 50) / 50 * step_s
+              local delay_s
+              if offset >= 0 then
+                delay_s = (step % 2 == 0) and offset or 0
+              else
+                delay_s = (step % 2 == 1) and (-offset) or 0
+              end
               clock.run(function()
-                if swing_s > 0 then clock.sleep(swing_s) end
+                if delay_s > 0 then clock.sleep(delay_s) end
                 track_note_on(ii, note, vel)
                 clock.sleep(gate * 60 / bpm)
                 track_note_off(ii, note)
