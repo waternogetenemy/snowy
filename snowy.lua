@@ -56,6 +56,7 @@ local NOTE_NAMES = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"}
 local selected_track = 1
 local screen_cursor  = 1  -- 1=scale/root 2=vel 3=density 4=gate 5=division 6=swing
 local is_playing     = true
+local gen_mode       = 0  -- 0=normal, 1=notes, 2=velocity, 3=trigs, 4=gates
 
 local tracks = {}
 for i = 1, NUM_TRACKS do
@@ -285,7 +286,7 @@ function grid_redraw()
 
   -- row 1: generate buttons (cols 1-4)
   for col = 1, 4 do
-    g:led(col, GEN_ROW, 4)
+    g:led(col, GEN_ROW, (col == gen_mode) and 15 or 4)
   end
 
   -- rows 3-6: track steps
@@ -345,7 +346,57 @@ function redraw()
   screen.aa(1)
   screen.font_face(1)
 
-  local ti  = selected_track
+  local ti = selected_track
+
+  -- gen mode screen
+  if gen_mode > 0 then
+    local titles = {"notes","velocity","trigs","gate"}
+    screen.font_size(5)
+    screen.level(4)
+    screen.move(2, 8)
+    screen.text(titles[gen_mode] .. "  —  track " .. ti)
+    screen.level(3)
+    screen.line_width(0.5)
+    screen.move(0, 11); screen.line(128, 11); screen.stroke()
+
+    screen.font_size(9)
+    if gen_mode == 1 then
+      local scale_name = scale_abbr(SCALES[params:get("t"..ti.."_scale")].name)
+      local root_name  = NOTE_NAMES[params:get("t"..ti.."_root")]
+      screen.level(15)
+      screen.move(2, 32); screen.text(scale_name)
+      screen.move(2, 46); screen.text(root_name)
+      screen.font_size(5); screen.level(3)
+      screen.move(2, 56); screen.text("e2 scale   e3 root")
+    elseif gen_mode == 2 then
+      local lo = params:get("t"..ti.."_vel_min")
+      local hi = params:get("t"..ti.."_vel_max")
+      screen.level(15)
+      screen.move(2, 36); screen.text(lo .. " — " .. hi)
+      screen.font_size(5); screen.level(3)
+      screen.move(2, 56); screen.text("e2 min   e3 max")
+    elseif gen_mode == 3 then
+      local density = params:get("t"..ti.."_density")
+      screen.level(15)
+      screen.move(2, 36); screen.text(density .. "%")
+      screen.font_size(5); screen.level(3)
+      screen.move(2, 56); screen.text("e2 density")
+    elseif gen_mode == 4 then
+      local lo = params:get("t"..ti.."_gate_min")
+      local hi = params:get("t"..ti.."_gate_max")
+      screen.level(15)
+      screen.move(2, 36); screen.text(string.format("%.2f — %.2f b", lo, hi))
+      screen.font_size(5); screen.level(3)
+      screen.move(2, 56); screen.text("e2 min   e3 max")
+    end
+
+    screen.level(6)
+    screen.font_size(5)
+    screen.move(128, 64); screen.text_right("k3 generate")
+    screen.update()
+    return
+  end
+
   local lv  = function(q) return q == screen_cursor and 15 or 3 end
 
   -- shared header
@@ -438,6 +489,22 @@ end
 -- -------------------------------------------------------
 function enc(n, d)
   local ti = selected_track
+  if gen_mode > 0 then
+    if gen_mode == 1 then
+      if     n == 2 then params:delta("t" .. ti .. "_scale", d)
+      elseif n == 3 then params:delta("t" .. ti .. "_root",  d) end
+    elseif gen_mode == 2 then
+      if     n == 2 then params:delta("t" .. ti .. "_vel_min", d)
+      elseif n == 3 then params:delta("t" .. ti .. "_vel_max", d) end
+    elseif gen_mode == 3 then
+      if n == 2 then params:delta("t" .. ti .. "_density", d) end
+    elseif gen_mode == 4 then
+      if     n == 2 then params:delta("t" .. ti .. "_gate_min", d)
+      elseif n == 3 then params:delta("t" .. ti .. "_gate_max", d) end
+    end
+    redraw()
+    return
+  end
   if n == 1 then
     screen_cursor = ((screen_cursor - 1 + d) % 6) + 1
   elseif n == 2 then
@@ -468,8 +535,17 @@ function key(n, z)
   if n == 2 then
     all_notes_off()
   elseif n == 3 then
-    is_playing = not is_playing
-    if not is_playing then all_notes_off() else restart_all() end
+    if gen_mode > 0 then
+      if     gen_mode == 1 then generate_notes(selected_track)
+      elseif gen_mode == 2 then generate_velocities(selected_track)
+      elseif gen_mode == 3 then generate_trigs(selected_track)
+      elseif gen_mode == 4 then generate_gates(selected_track)
+      end
+      gen_mode = 0
+    else
+      is_playing = not is_playing
+      if not is_playing then all_notes_off() else restart_all() end
+    end
     redraw()
     grid_redraw()
   end
@@ -497,12 +573,11 @@ g.key = function(col, row, z)
   end
 
   if row == GEN_ROW then
-    if     col == 1 then generate_notes(selected_track)
-    elseif col == 2 then generate_velocities(selected_track)
-    elseif col == 3 then generate_trigs(selected_track)
-    elseif col == 4 then generate_gates(selected_track)
+    if col >= 1 and col <= 4 then
+      gen_mode = (gen_mode == col) and 0 or col
+      redraw()
+      grid_redraw()
     end
-    grid_redraw()
 
   elseif row >= TRACK_START_ROW and row < TRACK_START_ROW + NUM_TRACKS then
     local ti = row - TRACK_START_ROW + 1
