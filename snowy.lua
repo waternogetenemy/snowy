@@ -18,7 +18,7 @@
 
 engine.name = 'None'
 
-local nb = include("lib/nb/lib/nb")
+local nb = include("snowy/lib/nb")
 local musicutil = require('musicutil')
 local lattice = require('lattice')
 
