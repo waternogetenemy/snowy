@@ -38,6 +38,9 @@ local SELECT_ROW     = 8
 local divisions      = {1/32, 1/16, 1/8, 1/4, 1/2, 1, 2, 4}
 local division_names = {"1/32","1/16","1/8","1/4","1/2","1 beat","2 beats","4 beats"}
 
+local gate_lengths      = {1/16, 1/8, 1/4, 1/2, 1, 2}
+local gate_length_names = {"1/16","1/8","1/4","1/2","1","2"}
+
 -- build scale list from musicutil, strip trailing octave
 local SCALES = {}
 for _, s in ipairs(musicutil.SCALES) do
@@ -110,20 +113,25 @@ local function generate_velocities(i)
 end
 
 local function generate_trigs(i)
-  local t       = tracks[i]
-  local density = params:get("t" .. i .. "_density") / 100
-  for s = 1, NUM_STEPS do
-    t.steps[s] = (math.random() < density)
+  local t     = tracks[i]
+  local count = params:get("t" .. i .. "_density")
+  local idx   = {}
+  for s = 1, NUM_STEPS do idx[s] = s end
+  for s = NUM_STEPS, 2, -1 do
+    local j = math.random(s)
+    idx[s], idx[j] = idx[j], idx[s]
   end
+  for s = 1, NUM_STEPS do t.steps[s] = false end
+  for s = 1, count do t.steps[idx[s]] = true end
 end
 
 local function generate_gates(i)
-  local t  = tracks[i]
-  local lo = params:get("t" .. i .. "_gate_min")
-  local hi = params:get("t" .. i .. "_gate_max")
-  if lo > hi then lo, hi = hi, lo end
+  local t    = tracks[i]
+  local lo_i = params:get("t" .. i .. "_gate_min")
+  local hi_i = params:get("t" .. i .. "_gate_max")
+  if lo_i > hi_i then lo_i, hi_i = hi_i, lo_i end
   for s = 1, NUM_STEPS do
-    t.gates[s] = lo + math.random() * (hi - lo)
+    t.gates[s] = gate_lengths[math.random(lo_i, hi_i)]
   end
 end
 
@@ -192,12 +200,10 @@ local function setup_params()
     params:add_number("t" .. i .. "_vel_min", "Vel Min", 0, 127, 40)
     params:add_number("t" .. i .. "_vel_max", "Vel Max", 0, 127, 100)
 
-    params:add_number("t" .. i .. "_density", "Density %", 0, 100, 50)
+    params:add_number("t" .. i .. "_density", "Density", 1, 16, 8)
 
-    params:add_control("t" .. i .. "_gate_min", "Gate Min",
-      controlspec.new(0.0625, 4.0, "lin", 0.0625, 0.25, "b"))
-    params:add_control("t" .. i .. "_gate_max", "Gate Max",
-      controlspec.new(0.0625, 4.0, "lin", 0.0625, 1.0, "b"))
+    params:add_option("t" .. i .. "_gate_min", "Gate Min", gate_length_names, 2)
+    params:add_option("t" .. i .. "_gate_max", "Gate Max", gate_length_names, 4)
 
     params:add_option("t" .. i .. "_div", "Division", division_names, 2)
 
@@ -409,17 +415,18 @@ function redraw()
 
   elseif gen_mode == 3 then
     header("trigs")
-    local density = params:get("t"..ti.."_density")
+    local count = params:get("t"..ti.."_density")
     screen.level(15)
-    screen.move(2, 34); screen.text(density .. "%")
-    hints("e2 density", "k3 gen")
+    screen.move(2, 34); screen.text(count .. " of 16")
+    hints("e2 count", "k3 gen")
 
   elseif gen_mode == 4 then
     header("gate")
-    local lo = params:get("t"..ti.."_gate_min")
-    local hi = params:get("t"..ti.."_gate_max")
+    local lo_i = params:get("t"..ti.."_gate_min")
+    local hi_i = params:get("t"..ti.."_gate_max")
     screen.level(15)
-    screen.move(2, 34); screen.text(string.format("%.2f - %.2f b", lo, hi))
+    screen.move(2, 34)
+    screen.text(gate_length_names[lo_i] .. " - " .. gate_length_names[hi_i])
     hints("e2 min  e3 max", "k3 gen")
 
   elseif gen_mode == 5 then
