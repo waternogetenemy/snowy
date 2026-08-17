@@ -300,15 +300,16 @@ function redraw()
   screen.clear()
   screen.aa(1)
   screen.font_face(1)
-  screen.font_size(7)
 
-  local ti = selected_track
+  local ti  = selected_track
+  local lv  = function(q) return q == screen_cursor and 15 or 3 end
 
   -- header
+  screen.font_size(7)
   screen.level(15)
   screen.move(2, 9)
   screen.text("Track " .. ti)
-  screen.level(5)
+  screen.level(4)
   screen.move(128, 9)
   if not is_playing then
     screen.text_right("stopped")
@@ -316,40 +317,53 @@ function redraw()
     screen.text_right("muted")
   end
 
-  -- divider
+  -- cross lines
   screen.level(3)
   screen.line_width(0.5)
-  screen.move(0, 12)
-  screen.line(128, 12)
-  screen.stroke()
+  screen.move(0,   12); screen.line(128, 12); screen.stroke()  -- header divider
+  screen.move(64,  12); screen.line(64,  64); screen.stroke()  -- vertical
+  screen.move(0,   38); screen.line(128, 38); screen.stroke()  -- horizontal mid
 
+  -- gather values
   local scale_name = scale_abbr(SCALES[params:get("t" .. ti .. "_scale")].name)
   local root_name  = NOTE_NAMES[params:get("t" .. ti .. "_root")]
   local vel_lo     = params:get("t" .. ti .. "_vel_min")
   local vel_hi     = params:get("t" .. ti .. "_vel_max")
   local density    = params:get("t" .. ti .. "_density")
+  local div_name   = division_names[params:get("t" .. ti .. "_div")]
   local gate_lo    = params:get("t" .. ti .. "_gate_min")
   local gate_hi    = params:get("t" .. ti .. "_gate_max")
-  local div_name   = division_names[params:get("t" .. ti .. "_div")]
 
-  local row_text = {
-    scale_name .. "  " .. root_name,
-    "vel " .. vel_lo .. " - " .. vel_hi,
-    "density " .. density .. "%  " .. div_name,
-    string.format("gate %.2f - %.2f b", gate_lo, gate_hi),
-  }
-  local row_y = {23, 34, 45, 56}
+  -- TL: notes (E2=scale, E3=root)
+  screen.level(lv(1))
+  screen.font_size(5)
+  screen.move(2, 20); screen.text("notes")
+  screen.font_size(7)
+  screen.move(2, 29); screen.text(scale_name)
+  screen.move(2, 36); screen.text(root_name)
 
-  for j = 1, 4 do
-    screen.level(j == screen_cursor and 15 or 5)
-    screen.move(10, row_y[j])
-    screen.text(row_text[j])
-  end
+  -- TR: velocity (E2=min, E3=max)
+  screen.level(lv(2))
+  screen.font_size(5)
+  screen.move(66, 20); screen.text("velocity")
+  screen.font_size(7)
+  screen.move(66, 29); screen.text(vel_lo .. " - " .. vel_hi)
 
-  -- cursor
-  screen.level(15)
-  screen.move(3, row_y[screen_cursor])
-  screen.text(">")
+  -- BL: trigs (E2=density, E3=division)
+  screen.level(lv(3))
+  screen.font_size(5)
+  screen.move(2, 46); screen.text("trigs")
+  screen.font_size(7)
+  screen.move(2, 55); screen.text(density .. "%")
+  screen.font_size(5)
+  screen.move(2, 63); screen.text(div_name)
+
+  -- BR: gate (E2=min, E3=max)
+  screen.level(lv(4))
+  screen.font_size(5)
+  screen.move(66, 46); screen.text("gate (beats)")
+  screen.font_size(7)
+  screen.move(66, 55); screen.text(string.format("%.2f-%.2f", gate_lo, gate_hi))
 
   screen.update()
 end
