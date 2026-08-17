@@ -239,7 +239,10 @@ local function setup_lattice()
     })
   end
 
-  seq_lattice:hard_restart()
+  clock.run(function()
+    clock.sleep(0.1)
+    seq_lattice:hard_restart()
+  end)
 end
 
 -- -------------------------------------------------------
