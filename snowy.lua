@@ -165,6 +165,12 @@ local function all_notes_off()
   end
 end
 
+local function restart_all()
+  for i = 1, NUM_TRACKS do
+    tracks[i].playhead = tracks[i].loop_start - 1
+  end
+end
+
 -- -------------------------------------------------------
 -- params
 -- -------------------------------------------------------
@@ -425,7 +431,7 @@ function key(n, z)
     all_notes_off()
   elseif n == 3 then
     is_playing = not is_playing
-    if not is_playing then all_notes_off() end
+    if not is_playing then all_notes_off() else restart_all() end
     redraw()
     grid_redraw()
   end
@@ -488,7 +494,7 @@ g.key = function(col, row, z)
   elseif row == SELECT_ROW then
     if col == 16 then
       is_playing = not is_playing
-      if not is_playing then all_notes_off() end
+      if not is_playing then all_notes_off() else restart_all() end
       redraw()
       grid_redraw()
     elseif col >= 1 and col <= NUM_TRACKS then
