@@ -3,7 +3,8 @@
 --
 -- grid:
 --   row 1       : gen buttons (cols 1-4: notes, vel, trigs, gates)
---                 col 6: octave  col 8: division  col 9: swing
+--                 col 6: octave up  col 8: division  col 9: swing
+--   row 2       : instant generate (cols 1-4)  col 6: octave down
 --   row 2       : instant generate (cols 1-4: notes, vel, trigs, gates)
 --   rows 3-6    : track steps (row 3 = track 1, etc.)
 --   row 7       : mutes (cols 1-4)
@@ -299,14 +300,16 @@ function grid_redraw()
   for col = 1, 4 do
     g:led(col, GEN_ROW, (col == gen_mode) and 15 or 4)
   end
-  g:led(6, GEN_ROW, (gen_mode == 7) and 15 or 4)
+  local cur_oct = params:get("t" .. selected_track .. "_octave")
+  g:led(6, GEN_ROW,   cur_oct < 3  and ((gen_mode == 7) and 15 or 5) or 2)
   g:led(8, GEN_ROW, (gen_mode == 5) and 15 or 4)
   g:led(9, GEN_ROW, (gen_mode == 6) and 15 or 4)
 
-  -- row 2: instant generate buttons (cols 1-4)
+  -- row 2: instant generate (cols 1-4), octave down (col 6)
   for col = 1, 4 do
     g:led(col, QUICK_ROW, 3)
   end
+  g:led(6, QUICK_ROW, cur_oct > -3 and 5 or 2)
 
   -- rows 3-6: track steps
   for i = 1, NUM_TRACKS do
@@ -458,7 +461,7 @@ function redraw()
     local oct = params:get("t"..ti.."_octave")
     screen.level(15)
     screen.move(2, 38); screen.text((oct > 0 and "+" or "") .. oct)
-    hints("e2 / e3 adjust")
+    hints("A6 up  B6 down")
   end
 
   screen.update()
@@ -552,7 +555,8 @@ g.key = function(col, row, z)
     if col >= 1 and col <= 4 then
       gen_mode = (gen_mode == col) and 0 or col
     elseif col == 6 then
-      gen_mode = (gen_mode == 7) and 0 or 7
+      params:delta("t" .. selected_track .. "_octave", 1)
+      gen_mode = 7
     elseif col == 8 then
       gen_mode = (gen_mode == 5) and 0 or 5
     elseif col == 9 then
@@ -571,6 +575,10 @@ g.key = function(col, row, z)
       elseif col == 4 then generate_gates(ti)
       end
       gen_dirty[ti][col] = false
+    elseif col == 6 then
+      params:delta("t" .. selected_track .. "_octave", -1)
+      gen_mode = 7
+      redraw(); grid_redraw()
     end
 
   elseif row >= TRACK_START_ROW and row < TRACK_START_ROW + NUM_TRACKS then
