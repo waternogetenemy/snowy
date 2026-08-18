@@ -543,7 +543,18 @@ g.key = function(col, row, z)
   if row == GEN_ROW then
     local changed = true
     if col >= 1 and col <= 4 then
-      gen_mode = (gen_mode == col) and 0 or col
+      if gen_mode == col then
+        gen_mode = 0  -- second press: exit screen
+      else
+        local ti = selected_track
+        gen_mode = col
+        if col == 1 then generate_notes(ti)
+        elseif col == 2 then generate_velocities(ti)
+        elseif col == 3 then generate_trigs(ti)
+        elseif col == 4 then generate_gates(ti)
+        end
+        gen_dirty[ti][col] = false
+      end
     elseif col == 6 then
       gen_mode = (gen_mode == 5) and 0 or 5
     elseif col == 7 then
