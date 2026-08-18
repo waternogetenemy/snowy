@@ -292,9 +292,10 @@ local function setup_lattice()
               t.playhead = t.playhead + 1
             end
             local step = t.playhead
-            if t.steps[step] and not t.muted then
+            local vol = params:get("t" .. i .. "_vol")
+            if t.steps[step] and not t.muted and vol > 0 then
               local note     = math.max(0, math.min(127, t.notes[step] + params:get("t" .. i .. "_octave") * 12))
-              local vel      = math.floor(t.velocities[step] * params:get("t" .. i .. "_vol") / 16)
+              local vel      = math.floor(t.velocities[step] * vol / 16)
               local gate     = t.gates[step]
               local ii       = i
               local bpm      = params:get("clock_tempo")
