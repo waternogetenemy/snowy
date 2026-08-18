@@ -3,7 +3,8 @@
 --
 -- grid:
 --   row 1       : gen buttons (cols 1-4: notes, vel, trigs, gates)
---                 col 6: octave up  col 8: division  col 9: swing  col 10: nudge
+--                 col 5: scale/root  col 6: octave up
+--                 col 8: division  col 9: swing  col 10: nudge
 --   row 2       : instant generate (cols 1-4)  col 6: octave down
 --   row 2       : instant generate (cols 1-4: notes, vel, trigs, gates)
 --   rows 3-6    : track steps (row 3 = track 1, etc.)
@@ -61,7 +62,7 @@ local NOTE_NAMES = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"}
 -- -------------------------------------------------------
 local selected_track = 1
 local is_playing     = true
-local gen_mode       = 0  -- 0=overview, 1=notes, 2=vel, 3=trigs, 4=gates, 5=div, 6=swing, 7=octave, 8=nudge
+local gen_mode       = 0  -- 0=overview, 1=notes, 2=vel, 3=trigs, 4=gates, 5=div, 6=swing, 7=octave, 8=nudge, 9=scale
 
 local gen_dirty = {}  -- gen_dirty[track][1-4]: param changed since last K3
 
@@ -71,6 +72,7 @@ for i = 1, NUM_TRACKS do
   tracks[i] = {
     steps      = {},
     notes      = {},
+    degrees    = {},
     velocities = {},
     gates      = {},
     playhead   = 0,
@@ -81,6 +83,7 @@ for i = 1, NUM_TRACKS do
   for s = 1, NUM_STEPS do
     tracks[i].steps[s]      = false
     tracks[i].notes[s]      = 60
+    tracks[i].degrees[s]    = 0
     tracks[i].velocities[s] = 80
     tracks[i].gates[s]      = 0.5
   end
@@ -93,19 +96,35 @@ local row_loop_set = {}  -- true if the held press was used to set a loop range
 -- -------------------------------------------------------
 -- generation
 -- -------------------------------------------------------
+local function remap_notes(i)
+  local t         = tracks[i]
+  local scale_idx = params:get("t" .. i .. "_scale")
+  local root      = params:get("t" .. i .. "_root") - 1
+  local intervals = SCALES[scale_idx].intervals
+  local n         = #intervals
+  local base      = 48 + root
+  local oct_lo    = params:get("t" .. i .. "_oct_lo")
+  for s = 1, NUM_STEPS do
+    local deg  = t.degrees[s]
+    local oct  = math.floor(deg / n) + oct_lo
+    local idx  = (deg % n) + 1
+    t.notes[s] = math.max(0, math.min(127, base + oct * 12 + intervals[idx] - intervals[1]))
+  end
+end
+
 local function generate_notes(i)
   local t         = tracks[i]
   local scale_idx = params:get("t" .. i .. "_scale")
-  local root      = params:get("t" .. i .. "_root") - 1  -- 0-11
   local intervals = SCALES[scale_idx].intervals
   local n         = #intervals
-  local base      = 48 + root  -- start at octave 3
+  local oct_lo    = params:get("t" .. i .. "_oct_lo")
+  local oct_hi    = params:get("t" .. i .. "_oct_hi")
+  if oct_lo > oct_hi then oct_lo, oct_hi = oct_hi, oct_lo end
+  local total = n * (oct_hi - oct_lo + 1)
   for s = 1, NUM_STEPS do
-    local degree = math.random(0, n * 3 - 1)
-    local oct    = math.floor(degree / n)
-    local idx    = (degree % n) + 1
-    t.notes[s]   = math.max(0, math.min(127, base + oct * 12 + intervals[idx] - intervals[1]))
+    t.degrees[s] = math.random(0, total - 1)
   end
+  remap_notes(i)
 end
 
 local function generate_velocities(i)
@@ -208,7 +227,7 @@ local function setup_params()
   params:add_separator("SNOWY")
 
   for i = 1, NUM_TRACKS do
-    params:add_group("track_" .. i, "Track " .. i, 13)
+    params:add_group("track_" .. i, "Track " .. i, 15)
 
     local scale_names   = {}
     local default_scale = 1
@@ -228,6 +247,9 @@ local function setup_params()
     params:add_option("t" .. i .. "_gate_max", "Gate Max", gate_length_names, 4)
 
     params:add_option("t" .. i .. "_div", "Division", division_names, 2)
+
+    params:add_number("t" .. i .. "_oct_lo", "Oct Lo", -3, 3, -1)
+    params:add_number("t" .. i .. "_oct_hi", "Oct Hi", -3, 3,  1)
 
     params:add_number("t" .. i .. "_swing",  "Swing",  0, 100, 50)
     params:add_number("t" .. i .. "_octave", "Octave", -3, 3,  0)
@@ -316,6 +338,7 @@ function grid_redraw()
   for col = 1, 4 do
     g:led(col, GEN_ROW, (col == gen_mode) and 15 or 4)
   end
+  g:led(5, GEN_ROW, (gen_mode == 9) and 15 or 4)
   local cur_oct = params:get("t" .. selected_track .. "_octave")
   g:led(6, GEN_ROW,   cur_oct < 3  and ((gen_mode == 7) and 15 or 5) or 2)
   g:led(8,  GEN_ROW, (gen_mode == 5) and 15 or 4)
@@ -430,12 +453,13 @@ function redraw()
 
   elseif gen_mode == 1 then
     header("notes")
-    local scale_name = scale_abbr(SCALES[params:get("t"..ti.."_scale")].name)
-    local root_name  = NOTE_NAMES[params:get("t"..ti.."_root")]
+    local lo = params:get("t"..ti.."_oct_lo")
+    local hi = params:get("t"..ti.."_oct_hi")
+    local lo_s = (lo > 0 and "+" or "") .. lo
+    local hi_s = (hi > 0 and "+" or "") .. hi
     screen.level(15)
-    screen.move(2, 28); screen.text(scale_name)
-    screen.move(2, 40); screen.text(root_name)
-    hints("e2 scale  e3 root", "k3 gen")
+    screen.move(2, 34); screen.text(lo_s .. " to " .. hi_s .. " oct")
+    hints("e2 lo  e3 hi", "k3 gen")
 
   elseif gen_mode == 2 then
     header("velocity")
@@ -485,6 +509,15 @@ function redraw()
     screen.level(15)
     screen.move(2, 38); screen.text("rotate pattern")
     hints("e1 forward / back")
+
+  elseif gen_mode == 9 then
+    header("scale")
+    local scale_name = scale_abbr(SCALES[params:get("t"..ti.."_scale")].name)
+    local root_name  = NOTE_NAMES[params:get("t"..ti.."_root")]
+    screen.level(15)
+    screen.move(2, 28); screen.text(scale_name)
+    screen.move(2, 40); screen.text(root_name)
+    hints("e2 scale  e3 root")
   end
 
   screen.update()
@@ -509,8 +542,8 @@ function enc(n, d)
     if     n == 2 then params:delta("t" .. ti .. "_div",   d)
     elseif n == 3 then params:delta("t" .. ti .. "_swing", d) end
   elseif gen_mode == 1 then
-    if     n == 2 then params:delta("t" .. ti .. "_scale", d)
-    elseif n == 3 then params:delta("t" .. ti .. "_root",  d) end
+    if     n == 2 then params:delta("t" .. ti .. "_oct_lo", d)
+    elseif n == 3 then params:delta("t" .. ti .. "_oct_hi", d) end
     gen_dirty[ti][1] = true
   elseif gen_mode == 2 then
     if     n == 2 then params:delta("t" .. ti .. "_vel_min", d)
@@ -527,6 +560,10 @@ function enc(n, d)
     params:delta("t" .. ti .. "_div", d)
   elseif gen_mode == 6 then
     params:delta("t" .. ti .. "_swing", d)
+  elseif gen_mode == 9 then
+    if     n == 2 then params:delta("t" .. ti .. "_scale", d)
+    elseif n == 3 then params:delta("t" .. ti .. "_root",  d) end
+    remap_notes(ti)
   elseif gen_mode == 7 then
     params:delta("t" .. ti .. "_octave", d)
   end
@@ -583,6 +620,8 @@ g.key = function(col, row, z)
     local changed = true
     if col >= 1 and col <= 4 then
       gen_mode = (gen_mode == col) and 0 or col
+    elseif col == 5 then
+      gen_mode = (gen_mode == 9) and 0 or 9
     elseif col == 6 then
       params:delta("t" .. selected_track .. "_octave", 1)
       gen_mode = 7
