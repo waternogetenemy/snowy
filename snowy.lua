@@ -3,7 +3,7 @@
 --
 -- grid:
 --   row 1       : gen buttons (cols 1-4: notes, vel, trigs, gates)
---                 col 6: octave up  col 8: division  col 9: swing
+--                 col 6: octave up  col 8: division  col 9: swing  col 10: nudge
 --   row 2       : instant generate (cols 1-4)  col 6: octave down
 --   row 2       : instant generate (cols 1-4: notes, vel, trigs, gates)
 --   rows 3-6    : track steps (row 3 = track 1, etc.)
@@ -61,7 +61,7 @@ local NOTE_NAMES = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"}
 -- -------------------------------------------------------
 local selected_track = 1
 local is_playing     = true
-local gen_mode       = 0  -- 0=overview, 1=notes, 2=vel, 3=trigs, 4=gates, 5=div, 6=swing, 7=octave
+local gen_mode       = 0  -- 0=overview, 1=notes, 2=vel, 3=trigs, 4=gates, 5=div, 6=swing, 7=octave, 8=nudge
 
 local gen_dirty = {}  -- gen_dirty[track][1-4]: param changed since last K3
 
@@ -139,6 +139,22 @@ local function generate_gates(i)
   for s = 1, NUM_STEPS do
     t.gates[s] = gate_lengths[math.random(lo_i, hi_i)]
   end
+end
+
+local function nudge_rotate(ti, d)
+  local t   = tracks[ti]
+  local n   = NUM_STEPS
+  local rot = d % n
+  if rot == 0 then return end
+  local ns, nn, nv, ng = {}, {}, {}, {}
+  for s = 1, n do
+    local src = ((s - 1 - rot) % n) + 1
+    ns[s] = t.steps[src]
+    nn[s] = t.notes[src]
+    nv[s] = t.velocities[src]
+    ng[s] = t.gates[src]
+  end
+  t.steps = ns; t.notes = nn; t.velocities = nv; t.gates = ng
 end
 
 -- -------------------------------------------------------
@@ -302,8 +318,9 @@ function grid_redraw()
   end
   local cur_oct = params:get("t" .. selected_track .. "_octave")
   g:led(6, GEN_ROW,   cur_oct < 3  and ((gen_mode == 7) and 15 or 5) or 2)
-  g:led(8, GEN_ROW, (gen_mode == 5) and 15 or 4)
-  g:led(9, GEN_ROW, (gen_mode == 6) and 15 or 4)
+  g:led(8,  GEN_ROW, (gen_mode == 5) and 15 or 4)
+  g:led(9,  GEN_ROW, (gen_mode == 6) and 15 or 4)
+  g:led(10, GEN_ROW, (gen_mode == 8) and 15 or 4)
 
   -- row 2: instant generate (cols 1-4), octave down (col 6)
   for col = 1, 4 do
@@ -462,6 +479,12 @@ function redraw()
     screen.level(15)
     screen.move(2, 38); screen.text((oct > 0 and "+" or "") .. oct)
     hints("A6 up  B6 down")
+
+  elseif gen_mode == 8 then
+    header("nudge")
+    screen.level(15)
+    screen.move(2, 38); screen.text("rotate pattern")
+    hints("e1 forward / back")
   end
 
   screen.update()
@@ -473,8 +496,14 @@ end
 function enc(n, d)
   local ti = selected_track
   if n == 1 then
-    selected_track = ((selected_track - 1 + d) % NUM_TRACKS) + 1
-    redraw(); grid_redraw(); return
+    if gen_mode == 8 then
+      nudge_rotate(selected_track, d)
+      grid_redraw()
+    else
+      selected_track = ((selected_track - 1 + d) % NUM_TRACKS) + 1
+      redraw(); grid_redraw()
+    end
+    return
   end
   if gen_mode == 0 then
     if     n == 2 then params:delta("t" .. ti .. "_div",   d)
@@ -561,6 +590,8 @@ g.key = function(col, row, z)
       gen_mode = (gen_mode == 5) and 0 or 5
     elseif col == 9 then
       gen_mode = (gen_mode == 6) and 0 or 6
+    elseif col == 10 then
+      gen_mode = (gen_mode == 8) and 0 or 8
     else
       changed = false
     end
