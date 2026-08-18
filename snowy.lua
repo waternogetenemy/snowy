@@ -485,7 +485,7 @@ function redraw()
     local count = params:get("t"..ti.."_density")
     screen.level(15)
     screen.move(2, 34); screen.text(count .. " of 16")
-    hints("e2 count", "k3 gen")
+    hints("e3 count", "k3 gen")
 
   elseif gen_mode == 4 then
     header("gate")
@@ -500,26 +500,26 @@ function redraw()
     header("division")
     screen.level(15)
     screen.move(2, 38); screen.text(division_names[params:get("t"..ti.."_div")])
-    hints("e2 / e3")
+    hints("e3")
 
   elseif gen_mode == 6 then
     header("swing")
     screen.level(15)
     screen.move(2, 38); screen.text(params:get("t"..ti.."_swing") .. "%")
-    hints("e2 / e3  (50=straight)")
+    hints("e3  (50=straight)")
 
   elseif gen_mode == 7 then
     header("octave")
     local oct = params:get("t"..ti.."_octave")
     screen.level(15)
     screen.move(2, 38); screen.text((oct > 0 and "+" or "") .. oct)
-    hints("A6 up  B6 down")
+    hints("A6 up  B6 down  e3")
 
   elseif gen_mode == 8 then
     header("nudge")
     screen.level(15)
     screen.move(2, 38); screen.text("rotate pattern")
-    hints("e1 forward / back")
+    hints("e3 forward / back")
 
   elseif gen_mode == 9 then
     header("scale")
@@ -542,7 +542,7 @@ function redraw()
       local label = (vol == 0) and "off" or tostring(vol)
       screen.move(x, 38); screen.text(label)
     end
-    hints("A up  B down")
+    hints("A up  B down  e3")
   end
 
   screen.update()
@@ -554,13 +554,8 @@ end
 function enc(n, d)
   local ti = selected_track
   if n == 1 then
-    if gen_mode == 8 then
-      nudge_rotate(selected_track, d)
-      grid_redraw()
-    else
-      selected_track = ((selected_track - 1 + d) % NUM_TRACKS) + 1
-      redraw(); grid_redraw()
-    end
+    selected_track = ((selected_track - 1 + d) % NUM_TRACKS) + 1
+    redraw(); grid_redraw()
     return
   end
   if gen_mode == 0 then
@@ -575,24 +570,28 @@ function enc(n, d)
     elseif n == 3 then params:delta("t" .. ti .. "_vel_max", d) end
     gen_dirty[ti][2] = true
   elseif gen_mode == 3 then
-    params:delta("t" .. ti .. "_density", d)
-    gen_dirty[ti][3] = true
+    if n == 3 then
+      params:delta("t" .. ti .. "_density", d)
+      gen_dirty[ti][3] = true
+    end
   elseif gen_mode == 4 then
     if     n == 2 then params:delta("t" .. ti .. "_gate_min", d)
     elseif n == 3 then params:delta("t" .. ti .. "_gate_max", d) end
     gen_dirty[ti][4] = true
   elseif gen_mode == 5 then
-    params:delta("t" .. ti .. "_div", d)
+    if n == 3 then params:delta("t" .. ti .. "_div", d) end
   elseif gen_mode == 6 then
-    params:delta("t" .. ti .. "_swing", d)
+    if n == 3 then params:delta("t" .. ti .. "_swing", d) end
+  elseif gen_mode == 7 then
+    if n == 3 then params:delta("t" .. ti .. "_octave", d) end
+  elseif gen_mode == 8 then
+    if n == 3 then nudge_rotate(ti, d); grid_redraw() end
   elseif gen_mode == 9 then
     if     n == 2 then params:delta("t" .. ti .. "_scale", d)
     elseif n == 3 then params:delta("t" .. ti .. "_root",  d) end
     remap_notes(ti)
-  elseif gen_mode == 7 then
-    params:delta("t" .. ti .. "_octave", d)
   elseif gen_mode == 10 then
-    params:delta("t" .. ti .. "_vol", d)
+    if n == 3 then params:delta("t" .. ti .. "_vol", d) end
   end
   redraw()
 end
