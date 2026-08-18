@@ -62,7 +62,7 @@ local NOTE_NAMES = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"}
 -- -------------------------------------------------------
 local selected_track = 1
 local is_playing     = true
-local gen_mode       = 0  -- 0=overview, 1=notes, 2=vel, 3=trigs, 4=gates, 5=div, 6=swing, 7=octave, 8=nudge, 9=scale
+local gen_mode       = 0  -- 0=overview, 1=notes, 2=vel, 3=trigs, 4=gates, 5=div, 6=swing, 7=octave, 8=nudge, 9=scale, 10=vol
 
 local gen_dirty = {}  -- gen_dirty[track][1-4]: param changed since last K3
 
@@ -352,11 +352,14 @@ function grid_redraw()
   end
   g:led(6, QUICK_ROW, cur_oct > -3 and 5 or 2)
 
-  -- cols 13-16: volume per track (A=up, brightness=level; B=down)
+  -- cols 13-16: volume per track (A=up, B=down)
   for i = 1, NUM_TRACKS do
     local vol = params:get("t" .. i .. "_vol")
-    g:led(12 + i, GEN_ROW,   math.floor(vol / 16 * 12) + 1)
-    g:led(12 + i, QUICK_ROW, vol > 0 and 3 or 1)
+    local on_vol_screen = (gen_mode == 10)
+    local a_br = vol == 0 and 1 or (on_vol_screen and (i == selected_track) and 15 or 5)
+    local b_br = vol == 0 and 0 or 2
+    g:led(12 + i, GEN_ROW,   a_br)
+    g:led(12 + i, QUICK_ROW, b_br)
   end
 
   -- rows 3-6: track steps
@@ -526,6 +529,20 @@ function redraw()
     screen.move(2, 28); screen.text(scale_name)
     screen.move(2, 40); screen.text(root_name)
     hints("e2 scale  e3 root")
+
+  elseif gen_mode == 10 then
+    header("volume")
+    local col_w = 30
+    for i = 1, NUM_TRACKS do
+      local vol = params:get("t" .. i .. "_vol")
+      local x   = 2 + (i - 1) * col_w
+      screen.level(i == ti and 5 or 2)
+      screen.move(x, 22); screen.text("tr." .. i)
+      screen.level(i == ti and 15 or 6)
+      local label = (vol == 0) and "off" or tostring(vol)
+      screen.move(x, 38); screen.text(label)
+    end
+    hints("A up  B down")
   end
 
   screen.update()
@@ -574,6 +591,8 @@ function enc(n, d)
     remap_notes(ti)
   elseif gen_mode == 7 then
     params:delta("t" .. ti .. "_octave", d)
+  elseif gen_mode == 10 then
+    params:delta("t" .. ti .. "_vol", d)
   end
   redraw()
 end
@@ -640,7 +659,9 @@ g.key = function(col, row, z)
     elseif col == 10 then
       gen_mode = (gen_mode == 8) and 0 or 8
     elseif col >= 13 and col <= 16 then
-      params:delta("t" .. (col - 12) .. "_vol", 1)
+      selected_track = col - 12
+      params:delta("t" .. selected_track .. "_vol", 1)
+      gen_mode = 10
     else
       changed = false
     end
@@ -660,7 +681,9 @@ g.key = function(col, row, z)
       gen_mode = 7
       redraw(); grid_redraw()
     elseif col >= 13 and col <= 16 then
-      params:delta("t" .. (col - 12) .. "_vol", -1)
+      selected_track = col - 12
+      params:delta("t" .. selected_track .. "_vol", -1)
+      gen_mode = 10
       redraw(); grid_redraw()
     end
 
