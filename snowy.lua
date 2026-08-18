@@ -208,7 +208,7 @@ local function setup_params()
   params:add_separator("SNOWY")
 
   for i = 1, NUM_TRACKS do
-    params:add_group("track_" .. i, "Track " .. i, 12)
+    params:add_group("track_" .. i, "Track " .. i, 13)
 
     local scale_names   = {}
     local default_scale = 1
