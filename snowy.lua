@@ -3,7 +3,7 @@
 --
 -- grid:
 --   row 1       : gen buttons (cols 1-4: notes, vel, trigs, gates)
---                 col 6: octave up  col 8: division  col 9: swing  col 10: nudge  col 11: scale/root
+--                 col 6: octave up  col 8: scale/root  col 9: division  col 10: swing  col 11: nudge
 --                 cols 13-16: volume up (tr 1-4, brightness = level)
 --   row 2       : instant generate (cols 1-4: notes, vel, trigs, gates)
 --                 col 6: octave down  cols 13-16: volume down (tr 1-4)
@@ -339,12 +339,12 @@ function grid_redraw()
   for col = 1, 4 do
     g:led(col, GEN_ROW, (col == gen_mode) and 15 or 4)
   end
-  g:led(11, GEN_ROW, (gen_mode == 9) and 15 or 4)
   local cur_oct = params:get("t" .. selected_track .. "_octave")
-  g:led(6, GEN_ROW,   cur_oct < 3  and ((gen_mode == 7) and 15 or 5) or 2)
-  g:led(8,  GEN_ROW, (gen_mode == 5) and 15 or 4)
-  g:led(9,  GEN_ROW, (gen_mode == 6) and 15 or 4)
-  g:led(10, GEN_ROW, (gen_mode == 8) and 15 or 4)
+  g:led(6,  GEN_ROW,  cur_oct < 3  and ((gen_mode == 7) and 15 or 5) or 2)
+  g:led(8,  GEN_ROW, (gen_mode == 9) and 15 or 4)
+  g:led(9,  GEN_ROW, (gen_mode == 5) and 15 or 4)
+  g:led(10, GEN_ROW, (gen_mode == 6) and 15 or 4)
+  g:led(11, GEN_ROW, (gen_mode == 8) and 15 or 4)
 
   -- row 2: instant generate (cols 1-4), octave down (col 6)
   for col = 1, 4 do
@@ -646,16 +646,16 @@ g.key = function(col, row, z)
     local changed = true
     if col >= 1 and col <= 4 then
       gen_mode = (gen_mode == col) and 0 or col
-    elseif col == 11 then
-      gen_mode = (gen_mode == 9) and 0 or 9
     elseif col == 6 then
       params:delta("t" .. selected_track .. "_octave", 1)
       gen_mode = 7
     elseif col == 8 then
-      gen_mode = (gen_mode == 5) and 0 or 5
+      gen_mode = (gen_mode == 9) and 0 or 9
     elseif col == 9 then
-      gen_mode = (gen_mode == 6) and 0 or 6
+      gen_mode = (gen_mode == 5) and 0 or 5
     elseif col == 10 then
+      gen_mode = (gen_mode == 6) and 0 or 6
+    elseif col == 11 then
       gen_mode = (gen_mode == 8) and 0 or 8
     elseif col >= 13 and col <= 16 then
       selected_track = col - 12
