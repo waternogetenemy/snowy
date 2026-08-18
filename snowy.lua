@@ -4,6 +4,7 @@
 -- grid:
 --   row 1       : gen buttons (cols 1-4: notes, vel, trigs, gates)
 --                 col 6: division  col 7: swing  col 8: octave
+--   row 2       : instant generate (cols 1-4: notes, vel, trigs, gates)
 --   rows 3-6    : track steps (row 3 = track 1, etc.)
 --   row 7       : mutes (cols 1-4)
 --   row 8       : track select (cols 1-4)  col 16: play/stop
@@ -31,6 +32,7 @@ local NUM_TRACKS = 4
 local NUM_STEPS  = 16
 
 local GEN_ROW        = 1
+local QUICK_ROW      = 2
 local TRACK_START_ROW = 3
 local MUTE_ROW       = 7
 local SELECT_ROW     = 8
@@ -293,13 +295,18 @@ function grid_redraw()
   if not g then return end
   g:all(0)
 
-  -- row 1: gen buttons cols 1-4, division col 6, swing col 7
+  -- row 1: gen param screens (cols 1-4), division/swing/octave (cols 6-8)
   for col = 1, 4 do
     g:led(col, GEN_ROW, (col == gen_mode) and 15 or 4)
   end
   g:led(6, GEN_ROW, (gen_mode == 5) and 15 or 4)
   g:led(7, GEN_ROW, (gen_mode == 6) and 15 or 4)
   g:led(8, GEN_ROW, (gen_mode == 7) and 15 or 4)
+
+  -- row 2: instant generate buttons (cols 1-4)
+  for col = 1, 4 do
+    g:led(col, QUICK_ROW, 3)
+  end
 
   -- rows 3-6: track steps
   for i = 1, NUM_TRACKS do
@@ -543,18 +550,7 @@ g.key = function(col, row, z)
   if row == GEN_ROW then
     local changed = true
     if col >= 1 and col <= 4 then
-      if gen_mode == col then
-        gen_mode = 0  -- second press: exit screen
-      else
-        local ti = selected_track
-        gen_mode = col
-        if col == 1 then generate_notes(ti)
-        elseif col == 2 then generate_velocities(ti)
-        elseif col == 3 then generate_trigs(ti)
-        elseif col == 4 then generate_gates(ti)
-        end
-        gen_dirty[ti][col] = false
-      end
+      gen_mode = (gen_mode == col) and 0 or col
     elseif col == 6 then
       gen_mode = (gen_mode == 5) and 0 or 5
     elseif col == 7 then
@@ -565,6 +561,17 @@ g.key = function(col, row, z)
       changed = false
     end
     if changed then redraw(); grid_redraw() end
+
+  elseif row == QUICK_ROW then
+    if col >= 1 and col <= 4 then
+      local ti = selected_track
+      if col == 1 then generate_notes(ti)
+      elseif col == 2 then generate_velocities(ti)
+      elseif col == 3 then generate_trigs(ti)
+      elseif col == 4 then generate_gates(ti)
+      end
+      gen_dirty[ti][col] = false
+    end
 
   elseif row >= TRACK_START_ROW and row < TRACK_START_ROW + NUM_TRACKS then
     local ti = row - TRACK_START_ROW + 1
