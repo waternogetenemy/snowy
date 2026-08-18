@@ -3,7 +3,7 @@
 --
 -- grid:
 --   row 1       : gen buttons (cols 1-4: notes, vel, trigs, gates)
---                 col 6: division  col 7: swing  col 8: octave
+--                 col 6: octave  col 8: division  col 9: swing
 --   row 2       : instant generate (cols 1-4: notes, vel, trigs, gates)
 --   rows 3-6    : track steps (row 3 = track 1, etc.)
 --   row 7       : mutes (cols 1-4)
@@ -299,9 +299,9 @@ function grid_redraw()
   for col = 1, 4 do
     g:led(col, GEN_ROW, (col == gen_mode) and 15 or 4)
   end
-  g:led(6, GEN_ROW, (gen_mode == 5) and 15 or 4)
-  g:led(7, GEN_ROW, (gen_mode == 6) and 15 or 4)
-  g:led(8, GEN_ROW, (gen_mode == 7) and 15 or 4)
+  g:led(6, GEN_ROW, (gen_mode == 7) and 15 or 4)
+  g:led(8, GEN_ROW, (gen_mode == 5) and 15 or 4)
+  g:led(9, GEN_ROW, (gen_mode == 6) and 15 or 4)
 
   -- row 2: instant generate buttons (cols 1-4)
   for col = 1, 4 do
@@ -552,11 +552,11 @@ g.key = function(col, row, z)
     if col >= 1 and col <= 4 then
       gen_mode = (gen_mode == col) and 0 or col
     elseif col == 6 then
-      gen_mode = (gen_mode == 5) and 0 or 5
-    elseif col == 7 then
-      gen_mode = (gen_mode == 6) and 0 or 6
-    elseif col == 8 then
       gen_mode = (gen_mode == 7) and 0 or 7
+    elseif col == 8 then
+      gen_mode = (gen_mode == 5) and 0 or 5
+    elseif col == 9 then
+      gen_mode = (gen_mode == 6) and 0 or 6
     else
       changed = false
     end
