@@ -3,10 +3,10 @@
 --
 -- grid:
 --   row 1       : gen buttons (cols 1-4: notes, vel, trigs, gates)
---                 col 5: scale/root  col 6: octave up
---                 col 8: division  col 9: swing  col 10: nudge
---   row 2       : instant generate (cols 1-4)  col 6: octave down
+--                 col 6: octave up  col 8: division  col 9: swing  col 10: nudge  col 11: scale/root
+--                 cols 13-16: volume up (tr 1-4, brightness = level)
 --   row 2       : instant generate (cols 1-4: notes, vel, trigs, gates)
+--                 col 6: octave down  cols 13-16: volume down (tr 1-4)
 --   rows 3-6    : track steps (row 3 = track 1, etc.)
 --   row 7       : mutes (cols 1-4)
 --   row 8       : track select (cols 1-4)  col 16: play/stop
@@ -227,7 +227,7 @@ local function setup_params()
   params:add_separator("SNOWY")
 
   for i = 1, NUM_TRACKS do
-    params:add_group("track_" .. i, "Track " .. i, 15)
+    params:add_group("track_" .. i, "Track " .. i, 16)
 
     local scale_names   = {}
     local default_scale = 1
@@ -253,6 +253,7 @@ local function setup_params()
 
     params:add_number("t" .. i .. "_swing",  "Swing",  0, 100, 50)
     params:add_number("t" .. i .. "_octave", "Octave", -3, 3,  0)
+    params:add_number("t" .. i .. "_vol",    "Volume", 0,  16, 16)
 
     nb:add_param("t" .. i .. "_voice", "Track " .. i)
 
@@ -293,7 +294,7 @@ local function setup_lattice()
             local step = t.playhead
             if t.steps[step] and not t.muted then
               local note     = math.max(0, math.min(127, t.notes[step] + params:get("t" .. i .. "_octave") * 12))
-              local vel      = t.velocities[step]
+              local vel      = math.floor(t.velocities[step] * params:get("t" .. i .. "_vol") / 16)
               local gate     = t.gates[step]
               local ii       = i
               local bpm      = params:get("clock_tempo")
@@ -338,7 +339,7 @@ function grid_redraw()
   for col = 1, 4 do
     g:led(col, GEN_ROW, (col == gen_mode) and 15 or 4)
   end
-  g:led(5, GEN_ROW, (gen_mode == 9) and 15 or 4)
+  g:led(11, GEN_ROW, (gen_mode == 9) and 15 or 4)
   local cur_oct = params:get("t" .. selected_track .. "_octave")
   g:led(6, GEN_ROW,   cur_oct < 3  and ((gen_mode == 7) and 15 or 5) or 2)
   g:led(8,  GEN_ROW, (gen_mode == 5) and 15 or 4)
@@ -350,6 +351,13 @@ function grid_redraw()
     g:led(col, QUICK_ROW, 3)
   end
   g:led(6, QUICK_ROW, cur_oct > -3 and 5 or 2)
+
+  -- cols 13-16: volume per track (A=up, brightness=level; B=down)
+  for i = 1, NUM_TRACKS do
+    local vol = params:get("t" .. i .. "_vol")
+    g:led(12 + i, GEN_ROW,   math.floor(vol / 16 * 12) + 1)
+    g:led(12 + i, QUICK_ROW, vol > 0 and 3 or 1)
+  end
 
   -- rows 3-6: track steps
   for i = 1, NUM_TRACKS do
@@ -620,7 +628,7 @@ g.key = function(col, row, z)
     local changed = true
     if col >= 1 and col <= 4 then
       gen_mode = (gen_mode == col) and 0 or col
-    elseif col == 5 then
+    elseif col == 11 then
       gen_mode = (gen_mode == 9) and 0 or 9
     elseif col == 6 then
       params:delta("t" .. selected_track .. "_octave", 1)
@@ -631,6 +639,8 @@ g.key = function(col, row, z)
       gen_mode = (gen_mode == 6) and 0 or 6
     elseif col == 10 then
       gen_mode = (gen_mode == 8) and 0 or 8
+    elseif col >= 13 and col <= 16 then
+      params:delta("t" .. (col - 12) .. "_vol", 1)
     else
       changed = false
     end
@@ -648,6 +658,9 @@ g.key = function(col, row, z)
     elseif col == 6 then
       params:delta("t" .. selected_track .. "_octave", -1)
       gen_mode = 7
+      redraw(); grid_redraw()
+    elseif col >= 13 and col <= 16 then
+      params:delta("t" .. (col - 12) .. "_vol", -1)
       redraw(); grid_redraw()
     end
 
