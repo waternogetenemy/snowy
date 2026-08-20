@@ -419,129 +419,129 @@ function redraw()
   screen.clear()
   screen.aa(0)
   screen.font_face(1)
-  screen.font_size(8)
 
   local ti = selected_track
 
-  local function rule(y)
-    screen.level(2)
-    screen.line_width(1)
-    screen.move(0, y); screen.line(128, y); screen.stroke()
-  end
-
-  local function header(label)
-    screen.level(5)
-    screen.move(2, 9); screen.text(label)
-    screen.move(126, 9); screen.text_right("tr." .. ti)
-    rule(12)
-  end
-
   local function hints(left, right)
-    screen.level(3)
-    if left  then screen.move(2, 61);   screen.text(left) end
-    if right then screen.move(126, 61); screen.text_right(right) end
+    screen.font_size(8)
+    screen.level(2)
+    if left  then screen.move(2,   62); screen.text(left) end
+    if right then screen.move(126, 62); screen.text_right(right) end
   end
+
+  local function title(label)
+    screen.font_size(10)
+    screen.level(8)
+    screen.move(64, 19)
+    screen.text_center(label)
+  end
+
+  local function two_col(ll, lv, rl, rv)
+    screen.font_size(8)
+    screen.level(3)
+    screen.move(4,  33); screen.text(ll)
+    screen.move(66, 33); screen.text(rl)
+    screen.font_size(18)
+    screen.level(15)
+    screen.move(4,  53); screen.text(lv)
+    screen.move(66, 53); screen.text(rv)
+  end
+
+  local function one_val(val, fsize)
+    screen.font_size(fsize or 22)
+    screen.level(15)
+    screen.move(64, 50)
+    screen.text_center(val)
+  end
+
+  -- track label always top-left
+  screen.font_size(8)
+  screen.level(3)
+  screen.move(2, 8); screen.text("track " .. ti)
 
   if gen_mode == 0 then
+    screen.font_size(8)
+    screen.level(3)
+    screen.move(4,  33); screen.text("division")
+    screen.move(66, 33); screen.text("swing")
+    screen.font_size(14)
     screen.level(15)
-    screen.move(2, 9); screen.text("Track " .. ti)
-    screen.level(4)
-    screen.move(126, 9)
-    if not is_playing then screen.text_right("stopped")
-    elseif tracks[ti].muted then screen.text_right("muted") end
-    rule(12)
-
-    screen.level(2)
-    screen.line_width(1)
-    screen.move(64, 12); screen.line(64, 64); screen.stroke()
-
-    local div_name = division_names[params:get("t" .. ti .. "_div")]
-    local swing    = params:get("t" .. ti .. "_swing")
-
-    screen.level(4);  screen.move(2,  24); screen.text("division")
-    screen.level(15); screen.move(2,  38); screen.text(div_name)
-    screen.level(4);  screen.move(66, 24); screen.text("swing")
-    screen.level(15); screen.move(66, 38); screen.text(swing .. "%")
+    screen.move(4,  53); screen.text(division_names[params:get("t"..ti.."_div")])
+    screen.move(66, 53); screen.text(params:get("t"..ti.."_swing") .. "%")
+    if not is_playing then
+      screen.font_size(8); screen.level(3)
+      screen.move(126, 8); screen.text_right("stopped")
+    elseif tracks[ti].muted then
+      screen.font_size(8); screen.level(3)
+      screen.move(126, 8); screen.text_right("muted")
+    end
 
   elseif gen_mode == 1 then
-    header("notes")
+    title("notes generator")
     local lo = params:get("t"..ti.."_oct_lo")
     local hi = params:get("t"..ti.."_oct_hi")
-    local lo_s = (lo > 0 and "+" or "") .. lo
-    local hi_s = (hi > 0 and "+" or "") .. hi
-    screen.level(15)
-    screen.move(2, 34); screen.text(lo_s .. " to " .. hi_s .. " oct")
-    hints("e2 lo  e3 hi", "k3 gen")
+    two_col("octave min", (lo >= 0 and "+" or "") .. lo,
+            "octave max", (hi >= 0 and "+" or "") .. hi)
+    hints("e2/e3 change", "k3 to gen")
 
   elseif gen_mode == 2 then
-    header("velocity")
-    local lo = params:get("t"..ti.."_vel_min")
-    local hi = params:get("t"..ti.."_vel_max")
-    screen.level(15)
-    screen.move(2, 34); screen.text(lo .. " - " .. hi)
-    hints("e2 min  e3 max", "k3 gen")
+    title("velocity generator")
+    two_col("velocity min", tostring(params:get("t"..ti.."_vel_min")),
+            "velocity max", tostring(params:get("t"..ti.."_vel_max")))
+    hints("e2/e3 change", "k3 to gen")
 
   elseif gen_mode == 3 then
-    header("trigs")
-    local count = params:get("t"..ti.."_density")
-    screen.level(15)
-    screen.move(2, 34); screen.text(count .. " of 16")
-    hints("e3 count", "k3 gen")
+    title("trigs generator")
+    one_val(tostring(params:get("t"..ti.."_density")))
+    hints("e3 change", "k3 to gen")
 
   elseif gen_mode == 4 then
-    header("gate")
-    local lo_i = params:get("t"..ti.."_gate_min")
-    local hi_i = params:get("t"..ti.."_gate_max")
-    screen.level(15)
-    screen.move(2, 34)
-    screen.text(gate_length_names[lo_i] .. " - " .. gate_length_names[hi_i])
-    hints("e2 min  e3 max", "k3 gen")
+    title("gates generator")
+    two_col("gate min", gate_length_names[params:get("t"..ti.."_gate_min")],
+            "gate max", gate_length_names[params:get("t"..ti.."_gate_max")])
+    hints("e2/e3 change", "k3 to gen")
 
   elseif gen_mode == 5 then
-    header("division")
-    screen.level(15)
-    screen.move(2, 38); screen.text(division_names[params:get("t"..ti.."_div")])
+    title("division")
+    one_val(division_names[params:get("t"..ti.."_div")], 16)
     hints("e3")
 
   elseif gen_mode == 6 then
-    header("swing")
-    screen.level(15)
-    screen.move(2, 38); screen.text(params:get("t"..ti.."_swing") .. "%")
+    title("swing")
+    one_val(params:get("t"..ti.."_swing") .. "%")
     hints("e3  (50=straight)")
 
   elseif gen_mode == 7 then
-    header("octave")
+    title("octave")
     local oct = params:get("t"..ti.."_octave")
-    screen.level(15)
-    screen.move(2, 38); screen.text((oct > 0 and "+" or "") .. oct)
+    one_val((oct > 0 and "+" or "") .. oct)
     hints("A6 up  B6 down  e3")
 
   elseif gen_mode == 8 then
-    header("nudge")
-    screen.level(15)
-    screen.move(2, 38); screen.text("rotate pattern")
+    title("nudge")
+    screen.font_size(8)
+    screen.level(6)
+    screen.move(64, 40); screen.text_center("rotate pattern")
     hints("e3 forward / back")
 
   elseif gen_mode == 9 then
-    header("scale")
-    local scale_name = scale_abbr(SCALES[params:get("t"..ti.."_scale")].name)
-    local root_name  = NOTE_NAMES[params:get("t"..ti.."_root")]
-    screen.level(15)
-    screen.move(2, 28); screen.text(scale_name)
-    screen.move(2, 40); screen.text(root_name)
+    title("scale")
+    two_col("scale", scale_abbr(SCALES[params:get("t"..ti.."_scale")].name),
+            "root",  NOTE_NAMES[params:get("t"..ti.."_root")])
     hints("e2 scale  e3 root")
 
   elseif gen_mode == 10 then
-    header("volume")
-    local col_w = 30
+    title("volume")
+    screen.font_size(8)
     for i = 1, NUM_TRACKS do
+      local x   = 4 + (i - 1) * 30
       local vol = params:get("t" .. i .. "_vol")
-      local x   = 2 + (i - 1) * col_w
-      screen.level(i == ti and 5 or 2)
-      screen.move(x, 22); screen.text("tr." .. i)
+      screen.level(i == ti and 4 or 2)
+      screen.move(x, 33); screen.text("tr." .. i)
+      screen.font_size(14)
       screen.level(i == ti and 15 or 6)
-      local label = (vol == 0) and "off" or tostring(vol)
-      screen.move(x, 38); screen.text(label)
+      screen.move(x, 53); screen.text(vol == 0 and "off" or tostring(vol))
+      screen.font_size(8)
     end
     hints("A up  B down  e3")
   end
