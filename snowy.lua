@@ -430,44 +430,44 @@ function redraw()
   end
 
   local function title(label)
-    screen.font_size(10)
+    screen.font_size(8)
     screen.level(8)
-    screen.move(64, 19)
+    screen.move(64, 14)
     screen.text_center(label)
   end
 
   local function two_col(ll, lv, rl, rv)
     screen.font_size(8)
     screen.level(3)
-    screen.move(4,  33); screen.text(ll)
-    screen.move(66, 33); screen.text(rl)
+    screen.move(2,  27); screen.text(ll)
+    screen.move(66, 27); screen.text(rl)
     screen.font_size(18)
     screen.level(15)
-    screen.move(4,  53); screen.text(lv)
-    screen.move(66, 53); screen.text(rv)
+    screen.move(2,  48); screen.text(lv)
+    screen.move(66, 48); screen.text(rv)
   end
 
   local function one_val(val, fsize)
     screen.font_size(fsize or 22)
     screen.level(15)
-    screen.move(64, 50)
+    screen.move(64, 48)
     screen.text_center(val)
   end
 
   -- track label always top-left
   screen.font_size(8)
   screen.level(3)
-  screen.move(2, 8); screen.text("track " .. ti)
+  screen.move(2, 7); screen.text("track " .. ti)
 
   if gen_mode == 0 then
     screen.font_size(8)
     screen.level(3)
-    screen.move(4,  33); screen.text("division")
-    screen.move(66, 33); screen.text("swing")
+    screen.move(2,  27); screen.text("division")
+    screen.move(66, 27); screen.text("swing")
     screen.font_size(14)
     screen.level(15)
-    screen.move(4,  53); screen.text(division_names[params:get("t"..ti.."_div")])
-    screen.move(66, 53); screen.text(params:get("t"..ti.."_swing") .. "%")
+    screen.move(2,  48); screen.text(division_names[params:get("t"..ti.."_div")])
+    screen.move(66, 48); screen.text(params:get("t"..ti.."_swing") .. "%")
     if not is_playing then
       screen.font_size(8); screen.level(3)
       screen.move(126, 8); screen.text_right("stopped")
@@ -482,24 +482,24 @@ function redraw()
     local hi = params:get("t"..ti.."_oct_hi")
     two_col("octave min", (lo >= 0 and "+" or "") .. lo,
             "octave max", (hi >= 0 and "+" or "") .. hi)
-    hints("e2/e3 change", "k3 to gen")
+    hints("e2/e3 change", "k3 to generate")
 
   elseif gen_mode == 2 then
     title("velocity generator")
     two_col("velocity min", tostring(params:get("t"..ti.."_vel_min")),
             "velocity max", tostring(params:get("t"..ti.."_vel_max")))
-    hints("e2/e3 change", "k3 to gen")
+    hints("e2/e3 change", "k3 to generate")
 
   elseif gen_mode == 3 then
     title("trigs generator")
     one_val(tostring(params:get("t"..ti.."_density")))
-    hints("e3 change", "k3 to gen")
+    hints("e3 change", "k3 to generate")
 
   elseif gen_mode == 4 then
     title("gates generator")
     two_col("gate min", gate_length_names[params:get("t"..ti.."_gate_min")],
             "gate max", gate_length_names[params:get("t"..ti.."_gate_max")])
-    hints("e2/e3 change", "k3 to gen")
+    hints("e2/e3 change", "k3 to generate")
 
   elseif gen_mode == 5 then
     title("division")
