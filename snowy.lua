@@ -39,8 +39,9 @@ local TRACK_START_ROW = 3
 local MUTE_ROW       = 7
 local SELECT_ROW     = 8
 
-local divisions      = {1/32, 1/16, 1/8, 1/4, 1/2, 1, 2, 4}
-local division_names = {"1/32","1/16","1/8","1/4","1/2","1 beat","2 beats","4 beats"}
+local divisions      = {1/32, 1/24, 1/16, 1/12, 1/8, 1/6, 1/4, 1/2, 1, 2, 4}
+local division_names = {"1/32","16t","1/16","8t","1/8","4t","1/4","1/2","1 beat","2 beats","4 beats"}
+local triplet_divs   = {[2]=true, [4]=true, [6]=true}
 
 local gate_lengths      = {1/16, 1/8, 1/4, 1/2, 1, 2}
 local gate_length_names = {"1/16","1/8","1/4","1/2","1","2"}
@@ -246,7 +247,7 @@ local function setup_params()
     params:add_option("t" .. i .. "_gate_min", "Gate Min", gate_length_names, 2)
     params:add_option("t" .. i .. "_gate_max", "Gate Max", gate_length_names, 4)
 
-    params:add_option("t" .. i .. "_div", "Division", division_names, 2)
+    params:add_option("t" .. i .. "_div", "Division", division_names, 3)
 
     params:add_number("t" .. i .. "_oct_lo", "Oct Lo", -3, 3, -1)
     params:add_number("t" .. i .. "_oct_hi", "Oct Hi", -3, 3,  1)
@@ -300,13 +301,15 @@ local function setup_lattice()
               local ii       = i
               local bpm      = params:get("clock_tempo")
               local step_s   = divisions[di] * 4 * (60 / bpm)
-              local swing    = params:get("t" .. i .. "_swing")
-              local offset   = (swing - 50) / 50 * step_s
-              local delay_s
-              if offset >= 0 then
-                delay_s = (step % 2 == 0) and offset or 0
-              else
-                delay_s = (step % 2 == 1) and (-offset) or 0
+              local delay_s  = 0
+              if not triplet_divs[di] then
+                local swing  = params:get("t" .. i .. "_swing")
+                local offset = (swing - 50) / 50 * step_s
+                if offset >= 0 then
+                  delay_s = (step % 2 == 0) and offset or 0
+                else
+                  delay_s = (step % 2 == 1) and (-offset) or 0
+                end
               end
               clock.run(function()
                 if delay_s > 0 then clock.sleep(delay_s) end
