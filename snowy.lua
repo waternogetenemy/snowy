@@ -325,7 +325,6 @@ local function setup_lattice()
             end
           end
         end
-        grid_redraw()
       end,
       division = div
     })
@@ -334,6 +333,14 @@ local function setup_lattice()
   clock.run(function()
     clock.sleep(0.1)
     seq_lattice:hard_restart()
+  end)
+
+  -- throttled grid refresh at ~30fps
+  clock.run(function()
+    while true do
+      clock.sleep(1/30)
+      grid_redraw()
+    end
   end)
 end
 
