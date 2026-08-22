@@ -43,6 +43,9 @@ local divisions      = {1/32, 1/24, 1/16, 1/12, 1/8, 1/6, 1/4, 1/2, 1, 2, 4}
 local division_names = {"1/32","16t","1/16","8t","1/8","4t","1/4","1/2","1 beat","2 beats","4 beats"}
 local triplet_divs   = {[2]=true, [4]=true, [6]=true}
 
+local midi_ch_names  = {"off"}
+for ch = 1, 16 do midi_ch_names[#midi_ch_names+1] = tostring(ch) end
+
 local gate_lengths      = {1/16, 1/8, 1/4, 1/2, 1, 2}
 local gate_length_names = {"1/16","1/8","1/4","1/2","1","2"}
 
@@ -192,16 +195,18 @@ end
 local function track_note_on(i, note, vel)
   local player = params:lookup_param("t" .. i .. "_voice"):get_player()
   if player then player:note_on(note, vel / 127) end
-  if midi_out then
-    midi_out:note_on(note, vel, params:get("t" .. i .. "_midi_ch"))
+  local ch_idx = params:get("t" .. i .. "_midi_ch")
+  if midi_out and ch_idx > 1 then
+    midi_out:note_on(note, vel, ch_idx - 1)
   end
 end
 
 local function track_note_off(i, note)
   local player = params:lookup_param("t" .. i .. "_voice"):get_player()
   if player then player:note_off(note) end
-  if midi_out then
-    midi_out:note_off(note, 0, params:get("t" .. i .. "_midi_ch"))
+  local ch_idx = params:get("t" .. i .. "_midi_ch")
+  if midi_out and ch_idx > 1 then
+    midi_out:note_off(note, 0, ch_idx - 1)
   end
 end
 
@@ -258,7 +263,7 @@ local function setup_params()
 
     nb:add_param("t" .. i .. "_voice", "Track " .. i)
 
-    params:add_number("t" .. i .. "_midi_ch", "MIDI Ch", 1, 16, i)
+    params:add_option("t" .. i .. "_midi_ch", "MIDI Ch", midi_ch_names, i + 1)
   end
 
   params:add_separator("MIDI")
