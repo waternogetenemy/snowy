@@ -210,17 +210,6 @@ local function stop_midi_clock()
   if midi_out then midi_out:stop() end
 end
 
-local function set_playing(state)
-  is_playing = state
-  if is_playing then
-    restart_all()
-    start_midi_clock()
-  else
-    all_notes_off()
-    stop_midi_clock()
-  end
-end
-
 -- -------------------------------------------------------
 -- note on / off
 -- -------------------------------------------------------
@@ -255,6 +244,17 @@ end
 local function restart_all()
   for i = 1, NUM_TRACKS do
     tracks[i].playhead = tracks[i].loop_start - 1
+  end
+end
+
+local function set_playing(state)
+  is_playing = state
+  if is_playing then
+    restart_all()
+    start_midi_clock()
+  else
+    all_notes_off()
+    stop_midi_clock()
   end
 end
 
