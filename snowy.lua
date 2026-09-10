@@ -184,29 +184,17 @@ end
 -- -------------------------------------------------------
 -- MIDI
 -- -------------------------------------------------------
-local midi_out       = nil
-local midi_clock_co  = nil
+local midi_out = nil
 
 local function setup_midi()
   midi_out = midi.connect(params:get("midi_out_device"))
 end
 
 local function start_midi_clock()
-  if not midi_out then return end
-  midi_out:start()
-  midi_clock_co = clock.run(function()
-    while true do
-      midi_out:clock()
-      clock.sync(1/24)
-    end
-  end)
+  if midi_out then midi_out:start() end
 end
 
 local function stop_midi_clock()
-  if midi_clock_co then
-    clock.cancel(midi_clock_co)
-    midi_clock_co = nil
-  end
   if midi_out then midi_out:stop() end
 end
 
@@ -366,6 +354,15 @@ local function setup_lattice()
     clock.sleep(0.1)
     seq_lattice:hard_restart()
   end)
+
+  -- MIDI clock ticks: 24ppqn via lattice (ppqn=96, so every 4 ticks = 1 MIDI clock)
+  seq_lattice:new_sprocket({
+    action = function()
+      if is_playing and midi_out then midi_out:clock() end
+    end,
+    division = 1/24,
+    enabled  = true
+  })
 
   -- throttled grid refresh at ~30fps
   clock.run(function()
