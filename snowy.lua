@@ -289,6 +289,7 @@ local function setup_params()
   params:add_separator("MIDI")
   params:add_number("midi_out_device", "MIDI Out Device", 1, 4, 1)
   params:set_action("midi_out_device", function() setup_midi() end)
+  params:add_number("midi_clock_delay_ms", "MIDI Clock Delay (ms)", 0, 50, 10)
 
   nb:add_player_params()
   params:bang()
@@ -366,7 +367,18 @@ local function setup_lattice()
   -- MIDI clock ticks: 24ppqn via lattice (ppqn=96, so every 4 ticks = 1 MIDI clock)
   seq_lattice:new_sprocket({
     action = function()
-      if is_playing and midi_out then midi_out:clock() end
+      if is_playing and midi_out then
+        local delay = params:get("midi_clock_delay_ms") / 1000
+        local m = midi_out
+        if delay > 0 then
+          clock.run(function()
+            clock.sleep(delay)
+            m:clock()
+          end)
+        else
+          m:clock()
+        end
+      end
     end,
     division = 1/96,
     enabled  = true
