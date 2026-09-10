@@ -66,7 +66,7 @@ local NOTE_NAMES = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"}
 -- -------------------------------------------------------
 local selected_track = 1
 local is_playing     = false
-local gen_mode       = 0  -- 0=overview, 1=notes, 2=vel, 3=trigs, 4=gates, 5=div, 6=swing, 7=octave, 8=nudge, 9=scale, 10=vol
+local gen_mode       = 0  -- 0=overview,1=notes,2=vel,3=trigs,4=gates,5=div,6=swing,7=octave,8=nudge,9=scale,10=vol,11=prob
 local last_oct_dir   = 1  -- 1=up (A6), 2=down (B6)
 
 local gen_dirty = {}  -- gen_dirty[track][1-4]: param changed since last K3
@@ -253,7 +253,7 @@ local function setup_params()
   params:add_separator("SNOWY")
 
   for i = 1, NUM_TRACKS do
-    params:add_group("track_" .. i, "Track " .. i, 16)
+    params:add_group("track_" .. i, "Track " .. i, 17)
 
     local scale_names   = {}
     local default_scale = 1
@@ -279,7 +279,8 @@ local function setup_params()
 
     params:add_number("t" .. i .. "_swing",  "Swing",  0, 100, 50)
     params:add_number("t" .. i .. "_octave", "Octave", -3, 3,  0)
-    params:add_number("t" .. i .. "_vol",    "Volume", 0,  16, 16)
+    params:add_number("t" .. i .. "_vol",    "Volume",      0,   16, 16)
+    params:add_number("t" .. i .. "_prob",   "Probability", 0,  100, 100)
 
     nb:add_param("t" .. i .. "_voice", "Track " .. i)
 
@@ -319,8 +320,9 @@ local function setup_lattice()
               t.playhead = t.playhead + 1
             end
             local step = t.playhead
-            local vol = params:get("t" .. i .. "_vol")
-            if t.steps[step] and not t.muted and vol > 0 then
+            local vol  = params:get("t" .. i .. "_vol")
+            local prob = params:get("t" .. i .. "_prob")
+            if t.steps[step] and not t.muted and vol > 0 and math.random(100) <= prob then
               local note     = math.max(0, math.min(127, t.notes[step] + params:get("t" .. i .. "_octave") * 12))
               local vel      = math.floor(t.velocities[step] * vol / 16)
               local gate     = t.gates[step]
@@ -407,6 +409,7 @@ function grid_redraw()
   local cur_oct  = params:get("t" .. selected_track .. "_octave")
   local oct_on   = (gen_mode == 7)
   g:led(6, GEN_ROW,   cur_oct < 3  and (oct_on and last_oct_dir == 1 and 15 or 5) or 2)
+  g:led(7,  GEN_ROW, (gen_mode == 11) and 15 or 4)
   g:led(8,  GEN_ROW, (gen_mode == 9) and 15 or 4)
   g:led(9,  GEN_ROW, (gen_mode == 5) and 15 or 4)
   g:led(10, GEN_ROW, (gen_mode == 6) and 15 or 4)
@@ -610,6 +613,11 @@ function redraw()
       screen.font_size(8)
     end
     hints("A up  B down  e3")
+
+  elseif gen_mode == 11 then
+    title("probability")
+    one_val(params:get("t"..ti.."_prob") .. "%")
+    hints("e3 change")
   end
 
   screen.update()
@@ -659,6 +667,8 @@ function enc(n, d)
     remap_notes(ti)
   elseif gen_mode == 10 then
     if n == 3 then params:delta("t" .. ti .. "_vol", d) end
+  elseif gen_mode == 11 then
+    if n == 3 then params:delta("t" .. ti .. "_prob", d) end
   end
   redraw()
 end
@@ -715,6 +725,8 @@ g.key = function(col, row, z)
     elseif col == 6 then
       params:delta("t" .. selected_track .. "_octave", 1)
       gen_mode = 7; last_oct_dir = 1
+    elseif col == 7 then
+      gen_mode = (gen_mode == 11) and 0 or 11
     elseif col == 8 then
       gen_mode = (gen_mode == 9) and 0 or 9
     elseif col == 9 then
