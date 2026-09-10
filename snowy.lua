@@ -336,12 +336,20 @@ local function setup_lattice()
                   delay_s = (step % 2 == 1) and (-offset) or 0
                 end
               end
-              clock.run(function()
-                if delay_s > 0 then clock.sleep(delay_s) end
+              if delay_s > 0 then
+                clock.run(function()
+                  clock.sleep(delay_s)
+                  track_note_on(ii, note, vel)
+                  clock.sleep(gate * 60 / bpm)
+                  track_note_off(ii, note)
+                end)
+              else
                 track_note_on(ii, note, vel)
-                clock.sleep(gate * 60 / bpm)
-                track_note_off(ii, note)
-              end)
+                clock.run(function()
+                  clock.sleep(gate * 60 / bpm)
+                  track_note_off(ii, note)
+                end)
+              end
             end
           end
         end
