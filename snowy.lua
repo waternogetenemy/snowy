@@ -290,7 +290,7 @@ local function setup_params()
   params:add_separator("MIDI")
   params:add_number("midi_out_device", "MIDI Out Device", 1, 4, 1)
   params:set_action("midi_out_device", function() setup_midi() end)
-  params:add_number("midi_clock_delay_ms", "MIDI Clock Delay (ms)", 0, 50, 10)
+  params:add_number("midi_clock_delay_ms", "MIDI Clock Delay (ms)", 0, 50, 0)
 
   nb:add_player_params()
   params:bang()
