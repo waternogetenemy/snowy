@@ -65,8 +65,9 @@ local NOTE_NAMES = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"}
 -- state
 -- -------------------------------------------------------
 local selected_track = 1
-local is_playing     = true
+local is_playing     = false
 local gen_mode       = 0  -- 0=overview, 1=notes, 2=vel, 3=trigs, 4=gates, 5=div, 6=swing, 7=octave, 8=nudge, 9=scale, 10=vol
+local last_oct_dir   = 1  -- 1=up (A6), 2=down (B6)
 
 local gen_dirty = {}  -- gen_dirty[track][1-4]: param changed since last K3
 
@@ -183,10 +184,41 @@ end
 -- -------------------------------------------------------
 -- MIDI
 -- -------------------------------------------------------
-local midi_out = nil
+local midi_out       = nil
+local midi_clock_co  = nil
 
 local function setup_midi()
   midi_out = midi.connect(params:get("midi_out_device"))
+end
+
+local function start_midi_clock()
+  if not midi_out then return end
+  midi_out:start()
+  midi_clock_co = clock.run(function()
+    while true do
+      midi_out:clock()
+      clock.sync(1/24)
+    end
+  end)
+end
+
+local function stop_midi_clock()
+  if midi_clock_co then
+    clock.cancel(midi_clock_co)
+    midi_clock_co = nil
+  end
+  if midi_out then midi_out:stop() end
+end
+
+local function set_playing(state)
+  is_playing = state
+  if is_playing then
+    restart_all()
+    start_midi_clock()
+  else
+    all_notes_off()
+    stop_midi_clock()
+  end
 end
 
 -- -------------------------------------------------------
@@ -355,8 +387,9 @@ function grid_redraw()
   for col = 1, 4 do
     g:led(col, GEN_ROW, (col == gen_mode) and 15 or 4)
   end
-  local cur_oct = params:get("t" .. selected_track .. "_octave")
-  g:led(6,  GEN_ROW,  cur_oct < 3  and ((gen_mode == 7) and 15 or 5) or 2)
+  local cur_oct  = params:get("t" .. selected_track .. "_octave")
+  local oct_on   = (gen_mode == 7)
+  g:led(6, GEN_ROW,   cur_oct < 3  and (oct_on and last_oct_dir == 1 and 15 or 5) or 2)
   g:led(8,  GEN_ROW, (gen_mode == 9) and 15 or 4)
   g:led(9,  GEN_ROW, (gen_mode == 5) and 15 or 4)
   g:led(10, GEN_ROW, (gen_mode == 6) and 15 or 4)
@@ -366,7 +399,7 @@ function grid_redraw()
   for col = 1, 4 do
     g:led(col, QUICK_ROW, 3)
   end
-  g:led(6, QUICK_ROW, cur_oct > -3 and 5 or 2)
+  g:led(6, QUICK_ROW, cur_oct > -3 and (oct_on and last_oct_dir == 2 and 15 or 5) or 2)
 
   -- cols 13-16: volume per track (A=up, B=down)
   for i = 1, NUM_TRACKS do
@@ -629,8 +662,7 @@ function key(n, z)
       if gen_dirty[ti][4] then generate_gates(ti) end
       for j = 1, 4 do gen_dirty[ti][j] = false end
     else
-      is_playing = not is_playing
-      if not is_playing then all_notes_off() else restart_all() end
+      set_playing(not is_playing)
     end
     redraw()
     grid_redraw()
@@ -664,7 +696,7 @@ g.key = function(col, row, z)
       gen_mode = (gen_mode == col) and 0 or col
     elseif col == 6 then
       params:delta("t" .. selected_track .. "_octave", 1)
-      gen_mode = 7
+      gen_mode = 7; last_oct_dir = 1
     elseif col == 8 then
       gen_mode = (gen_mode == 9) and 0 or 9
     elseif col == 9 then
@@ -693,7 +725,7 @@ g.key = function(col, row, z)
       gen_dirty[ti][col] = false
     elseif col == 6 then
       params:delta("t" .. selected_track .. "_octave", -1)
-      gen_mode = 7
+      gen_mode = 7; last_oct_dir = 2
       redraw(); grid_redraw()
     elseif col >= 13 and col <= 16 then
       selected_track = col - 12
@@ -729,8 +761,7 @@ g.key = function(col, row, z)
 
   elseif row == SELECT_ROW then
     if col == 16 then
-      is_playing = not is_playing
-      if not is_playing then all_notes_off() else restart_all() end
+      set_playing(not is_playing)
       redraw()
       grid_redraw()
     elseif col >= 1 and col <= NUM_TRACKS then
