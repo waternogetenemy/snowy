@@ -360,7 +360,7 @@ local function setup_lattice()
     action = function()
       if is_playing and midi_out then midi_out:clock() end
     end,
-    division = 1/24,
+    division = 1/96,
     enabled  = true
   })
 
