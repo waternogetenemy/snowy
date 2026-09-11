@@ -510,12 +510,12 @@ function redraw()
   local function two_col(ll, lv, rl, rv)
     screen.font_size(8)
     screen.level(3)
-    screen.move(2,  26); screen.text(ll)
-    screen.move(66, 26); screen.text(rl)
+    screen.move(32, 26); screen.text_center(ll)
+    screen.move(96, 26); screen.text_center(rl)
     screen.font_size(16)
     screen.level(15)
-    screen.move(2,  40); screen.text(lv)
-    screen.move(66, 40); screen.text(rv)
+    screen.move(32, 44); screen.text_center(lv)
+    screen.move(96, 44); screen.text_center(rv)
   end
 
   local function one_val(val, fsize)
@@ -591,9 +591,7 @@ function redraw()
 
   elseif gen_mode == 8 then
     title("nudge")
-    screen.font_size(8)
-    screen.level(6)
-    screen.move(64, 40); screen.text_center("rotate pattern")
+    one_val("rotate")
     hints("e3 forward / back")
 
   elseif gen_mode == 9 then
