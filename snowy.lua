@@ -265,6 +265,9 @@ local function load_pattern(slot)
     t.gates      = {table.unpack(src.gates)}
     t.loop_start = src.loop_start
     t.loop_end   = src.loop_end
+    if t.playhead < t.loop_start or t.playhead > t.loop_end then
+      t.playhead = t.loop_start
+    end
   end
 end
 
