@@ -421,12 +421,11 @@ function grid_redraw()
   end
   g:led(6, QUICK_ROW, cur_oct > -3 and (oct_on and last_oct_dir == 2 and 15 or 5) or 2)
 
-  -- cols 13-16: volume per track (A=up, B=down)
+  -- cols 13-16: A=select track (vol screen), B=mute
   for i = 1, NUM_TRACKS do
-    local vol = params:get("t" .. i .. "_vol")
     local on_vol_screen = (gen_mode == 10)
-    local a_br = vol == 0 and 1 or (on_vol_screen and (i == selected_track) and 15 or 5)
-    local b_br = vol == 0 and 0 or 2
+    local a_br = (on_vol_screen and i == selected_track) and 15 or (i == selected_track and 5 or 3)
+    local b_br = tracks[i].muted and 12 or 2
     g:led(12 + i, GEN_ROW,   a_br)
     g:led(12 + i, QUICK_ROW, b_br)
   end
@@ -737,7 +736,6 @@ g.key = function(col, row, z)
       gen_mode = (gen_mode == 8) and 0 or 8
     elseif col >= 13 and col <= 16 then
       selected_track = col - 12
-      params:delta("t" .. selected_track .. "_vol", 1)
       gen_mode = 10
     else
       changed = false
@@ -758,9 +756,8 @@ g.key = function(col, row, z)
       gen_mode = 7; last_oct_dir = 2
       redraw(); grid_redraw()
     elseif col >= 13 and col <= 16 then
-      selected_track = col - 12
-      params:delta("t" .. selected_track .. "_vol", -1)
-      gen_mode = 10
+      local ti = col - 12
+      tracks[ti].muted = not tracks[ti].muted
       redraw(); grid_redraw()
     end
 
