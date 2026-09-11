@@ -71,6 +71,10 @@ local last_oct_dir   = 1  -- 1=up (A6), 2=down (B6)
 
 local gen_dirty = {}  -- gen_dirty[track][1-4]: param changed since last K3
 
+local pattern_slots   = {}   -- saved pattern snapshots, indexed 1-16
+local pat_press_time  = {}   -- time of key-down per col on pattern row
+local HOLD_SAVE_S     = 0.5  -- seconds to hold for save
+
 local tracks = {}
 for i = 1, NUM_TRACKS do
   gen_dirty[i] = {false, false, false, false}
@@ -232,6 +236,35 @@ end
 local function restart_all()
   for i = 1, NUM_TRACKS do
     tracks[i].playhead = tracks[i].loop_start - 1
+  end
+end
+
+local function save_pattern(slot)
+  pattern_slots[slot] = {}
+  for i = 1, NUM_TRACKS do
+    local t = tracks[i]
+    pattern_slots[slot][i] = {
+      notes      = {table.unpack(t.notes)},
+      velocities = {table.unpack(t.velocities)},
+      steps      = {table.unpack(t.steps)},
+      gates      = {table.unpack(t.gates)},
+      loop_start = t.loop_start,
+      loop_end   = t.loop_end,
+    }
+  end
+end
+
+local function load_pattern(slot)
+  if not pattern_slots[slot] then return end
+  for i = 1, NUM_TRACKS do
+    local src = pattern_slots[slot][i]
+    local t   = tracks[i]
+    t.notes      = {table.unpack(src.notes)}
+    t.velocities = {table.unpack(src.velocities)}
+    t.steps      = {table.unpack(src.steps)}
+    t.gates      = {table.unpack(src.gates)}
+    t.loop_start = src.loop_start
+    t.loop_end   = src.loop_end
   end
 end
 
@@ -468,6 +501,11 @@ function grid_redraw()
     end
   end
 
+
+  -- row 7: pattern slots (cols 1-16)
+  for col = 1, 16 do
+    g:led(col, MUTE_ROW, pattern_slots[col] and 5 or 1)
+  end
 
   -- row 8: track select (cols 1-4), play/stop (col 16)
   for i = 1, NUM_TRACKS do
@@ -720,6 +758,22 @@ g.key = function(col, row, z)
         row_loop_set[row] = false
       end
     end
+    if row == MUTE_ROW then
+      local held = util.time() - (pat_press_time[col] or util.time())
+      if held >= HOLD_SAVE_S then
+        save_pattern(col)
+      else
+        load_pattern(col)
+      end
+      pat_press_time[col] = nil
+      grid_redraw()
+      return
+    end
+    return
+  end
+
+  if row == MUTE_ROW then
+    pat_press_time[col] = util.time()
     return
   end
 
