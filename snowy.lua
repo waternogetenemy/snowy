@@ -290,7 +290,7 @@ local function setup_params()
   params:add_separator("MIDI")
   params:add_number("midi_out_device", "MIDI Out Device", 1, 4, 1)
   params:set_action("midi_out_device", function() setup_midi() end)
-  params:add_number("midi_clock_delay_ms", "MIDI Clock Delay (ms)", 0, 50, 0)
+  params:add_number("midi_clock_delay_ms", "MIDI Clock Delay (ms)", -50, 50, 0)
 
   nb:add_player_params()
   params:bang()
@@ -339,9 +339,11 @@ local function setup_lattice()
                   delay_s = (step % 2 == 1) and (-offset) or 0
                 end
               end
-              if delay_s > 0 then
+              local clk_delay = params:get("midi_clock_delay_ms")
+              local note_delay = delay_s + (clk_delay < 0 and (-clk_delay / 1000) or 0)
+              if note_delay > 0 then
                 clock.run(function()
-                  clock.sleep(delay_s)
+                  clock.sleep(note_delay)
                   track_note_on(ii, note, vel)
                   clock.sleep(gate * 60 / bpm)
                   track_note_off(ii, note)
