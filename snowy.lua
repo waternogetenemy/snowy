@@ -497,8 +497,8 @@ function redraw()
   local function title(label)
     screen.font_size(8)
     screen.level(8)
-    screen.move(64, 16)
-    screen.text_center(label)
+    screen.move(126, 7)
+    screen.text_right(label)
   end
 
   local function two_col(ll, lv, rl, rv)
@@ -597,7 +597,6 @@ function redraw()
     screen.move(66, 26); screen.text("root")
     screen.font_size(8); screen.level(15)
     screen.move(2,  40); screen.text(scale_abbr(SCALES[params:get("t"..ti.."_scale")].name))
-    screen.font_size(16)
     screen.move(66, 40); screen.text(NOTE_NAMES[params:get("t"..ti.."_root")])
     hints("e2 scale  e3 root")
 
