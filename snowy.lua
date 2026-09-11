@@ -608,17 +608,17 @@ function redraw()
 
   elseif gen_mode == 10 then
     title("volume")
-    screen.font_size(8)
     for i = 1, NUM_TRACKS do
-      local x   = 4 + (i - 1) * 30
+      local xc  = 19 + (i - 1) * 30
       local vol = params:get("t" .. i .. "_vol")
+      screen.font_size(8)
       screen.level(i == ti and 4 or 2)
-      screen.move(x, 33); screen.text("tr." .. i)
+      screen.move(xc, 24); screen.text_center("tr." .. i)
       screen.font_size(16)
       screen.level(i == ti and 15 or 6)
-      screen.move(x, 53); screen.text(vol == 0 and "off" or tostring(vol))
-      screen.font_size(8)
+      screen.move(xc, 44); screen.text_center(vol == 0 and "off" or tostring(vol))
     end
+    screen.font_size(8)
     hints("e3 change")
 
   elseif gen_mode == 11 then
