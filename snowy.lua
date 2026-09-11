@@ -592,8 +592,13 @@ function redraw()
 
   elseif gen_mode == 9 then
     title("scale")
-    two_col("scale", scale_abbr(SCALES[params:get("t"..ti.."_scale")].name),
-            "root",  NOTE_NAMES[params:get("t"..ti.."_root")])
+    screen.font_size(8); screen.level(3)
+    screen.move(2,  26); screen.text("scale")
+    screen.move(66, 26); screen.text("root")
+    screen.font_size(8); screen.level(15)
+    screen.move(2,  40); screen.text(scale_abbr(SCALES[params:get("t"..ti.."_scale")].name))
+    screen.font_size(16)
+    screen.move(66, 40); screen.text(NOTE_NAMES[params:get("t"..ti.."_root")])
     hints("e2 scale  e3 root")
 
   elseif gen_mode == 10 then
