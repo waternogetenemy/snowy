@@ -280,6 +280,12 @@ local function setup_params()
     params:add_number("t" .. i .. "_swing",  "Swing",  0, 100, 50)
     params:add_number("t" .. i .. "_octave", "Octave", -3, 3,  0)
     params:add_number("t" .. i .. "_vol",    "Volume",      0,   16, 16)
+    params:set_action("t" .. i .. "_vol", function(val)
+      local ch_idx = params:get("t" .. i .. "_midi_ch")
+      if midi_out and ch_idx > 1 then
+        midi_out:cc(7, math.floor(val / 16 * 127), ch_idx - 1)
+      end
+    end)
     params:add_number("t" .. i .. "_prob",   "Probability", 0,  100, 100)
 
     nb:add_param("t" .. i .. "_voice", "Track " .. i)
