@@ -609,7 +609,7 @@ function redraw()
       screen.move(x, 53); screen.text(vol == 0 and "off" or tostring(vol))
       screen.font_size(8)
     end
-    hints("A up  B down  e3")
+    hints("e3 change")
 
   elseif gen_mode == 11 then
     title("probability")
