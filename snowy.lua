@@ -303,7 +303,7 @@ local function setup_params()
     params:add_number("t" .. i .. "_vel_min", "Vel Min", 0, 127, 40)
     params:add_number("t" .. i .. "_vel_max", "Vel Max", 0, 127, 100)
 
-    params:add_number("t" .. i .. "_density", "Density", 1, 16, 8)
+    params:add_number("t" .. i .. "_density", "Density", 1, 64, 32)
 
     params:add_option("t" .. i .. "_gate_min", "Gate Min", gate_length_names, 2)
     params:add_option("t" .. i .. "_gate_max", "Gate Max", gate_length_names, 4)
