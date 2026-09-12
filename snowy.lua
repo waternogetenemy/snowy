@@ -31,7 +31,7 @@ local g = grid.connect()
 -- constants
 -- -------------------------------------------------------
 local NUM_TRACKS = 4
-local NUM_STEPS  = 16
+local NUM_STEPS  = 64
 
 local GEN_ROW        = 1
 local QUICK_ROW      = 2
@@ -99,8 +99,8 @@ for i = 1, NUM_TRACKS do
 end
 
 -- hold state for loop point selection
-local row_held     = {}  -- row_held[row] = col currently held, or nil
-local row_loop_set = {}  -- true if the held press was used to set a loop range
+local step_held     = nil   -- step number currently held, or nil
+local step_loop_set = false -- true if the held press was used to set a loop range
 
 -- -------------------------------------------------------
 -- generation
@@ -474,36 +474,32 @@ function grid_redraw()
     g:led(12 + i, QUICK_ROW, b_br)
   end
 
-  -- rows 3-6: track steps
-  for i = 1, NUM_TRACKS do
-    local row = TRACK_START_ROW + (i - 1)
-    local t   = tracks[i]
-    for s = 1, NUM_STEPS do
-      local is_head    = (s == t.playhead)
-      local has_trig   = t.steps[s]
-      local in_loop    = (s >= t.loop_start and s <= t.loop_end)
-      local is_loop_edge = (s == t.loop_start or s == t.loop_end)
-        and (t.loop_start ~= 1 or t.loop_end ~= NUM_STEPS)
-      local br
-      if is_head and has_trig then
-        br = 15
-      elseif is_head then
-        br = 6
-      elseif has_trig and in_loop then
-        br = (i == selected_track) and 8 or 4
-      elseif has_trig then
-        br = 2
-      elseif is_loop_edge then
-        br = 3
-      elseif in_loop then
-        br = 0
-      else
-        br = 0
-      end
-      g:led(s, row, br)
+  -- rows 3-6: 64 steps of selected track (row 3=1-16, row 4=17-32, etc.)
+  local t = tracks[selected_track]
+  for s = 1, NUM_STEPS do
+    local scol = ((s - 1) % 16) + 1
+    local srow = TRACK_START_ROW + math.floor((s - 1) / 16)
+    local is_head      = (s == t.playhead)
+    local has_trig     = t.steps[s]
+    local in_loop      = (s >= t.loop_start and s <= t.loop_end)
+    local is_loop_edge = (s == t.loop_start or s == t.loop_end)
+      and (t.loop_start ~= 1 or t.loop_end ~= NUM_STEPS)
+    local br
+    if is_head and has_trig then
+      br = 15
+    elseif is_head then
+      br = 6
+    elseif has_trig and in_loop then
+      br = 8
+    elseif has_trig then
+      br = 2
+    elseif is_loop_edge then
+      br = 3
+    else
+      br = 0
     end
+    g:led(scol, srow, br)
   end
-
 
   -- row 7: pattern slots (cols 1-16)
   for col = 1, 16 do
@@ -750,15 +746,14 @@ g.key = function(col, row, z)
   -- handle key-up for track rows (loop point release)
   if z == 0 then
     if row >= TRACK_START_ROW and row < TRACK_START_ROW + NUM_TRACKS then
-      if row_held[row] == col then
-        if not row_loop_set[row] then
-          -- single tap: toggle trig
-          local ti = row - TRACK_START_ROW + 1
-          tracks[ti].steps[col] = not tracks[ti].steps[col]
+      local step = (row - TRACK_START_ROW) * 16 + col
+      if step_held == step then
+        if not step_loop_set then
+          tracks[selected_track].steps[step] = not tracks[selected_track].steps[step]
           grid_redraw()
         end
-        row_held[row]     = nil
-        row_loop_set[row] = false
+        step_held     = nil
+        step_loop_set = false
       end
     end
     if row == MUTE_ROW then
@@ -825,21 +820,19 @@ g.key = function(col, row, z)
     end
 
   elseif row >= TRACK_START_ROW and row < TRACK_START_ROW + NUM_TRACKS then
-    local ti = row - TRACK_START_ROW + 1
-    if col >= 1 and col <= NUM_STEPS then
-      if row_held[row] ~= nil then
-        -- second key while holding: set loop range
-        local lo = math.min(row_held[row], col)
-        local hi = math.max(row_held[row], col)
-        tracks[ti].loop_start = lo
-        tracks[ti].loop_end   = hi
-        row_loop_set[row]     = true
-        grid_redraw()
-      else
-        -- first press: hold and wait for key-up or second press
-        row_held[row]     = col
-        row_loop_set[row] = false
-      end
+    local step = (row - TRACK_START_ROW) * 16 + col
+    if step_held ~= nil then
+      -- second key while holding: set loop range
+      local lo = math.min(step_held, step)
+      local hi = math.max(step_held, step)
+      tracks[selected_track].loop_start = lo
+      tracks[selected_track].loop_end   = hi
+      step_loop_set = true
+      grid_redraw()
+    else
+      -- first press: hold and wait
+      step_held     = step
+      step_loop_set = false
     end
 
 
