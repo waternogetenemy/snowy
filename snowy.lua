@@ -319,7 +319,7 @@ local function setup_params()
     params:set_action("t" .. i .. "_vol", function(val)
       local ch_idx = params:get("t" .. i .. "_midi_ch")
       if midi_out and ch_idx > 1 then
-        midi_out:cc(7, math.floor(val / 16 * 127), ch_idx - 1)
+        midi_out:cc(11, math.floor(val / 16 * 127), ch_idx - 1)
       end
     end)
     params:add_number("t" .. i .. "_prob",   "Probability", 0,  100, 100)
