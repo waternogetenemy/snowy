@@ -465,6 +465,11 @@ local function setup_lattice()
     })
   end
 
+  clock.run(function()
+    clock.sleep(0.1)
+    seq_lattice:hard_restart()
+  end)
+
   -- MIDI clock ticks: 24ppqn via lattice (ppqn=96, so every 4 ticks = 1 MIDI clock)
   seq_lattice:new_sprocket({
     action = function()
@@ -484,8 +489,6 @@ local function setup_lattice()
     division = 1/96,
     enabled  = true
   })
-
-  seq_lattice:hard_restart()
 
   -- throttled grid refresh at ~30fps
   clock.run(function()
