@@ -925,7 +925,7 @@ function init()
 
   clock.run(function()
     clock.sleep(0.5)
-    local fp = norns.state.data .. string.format("%02d", params.current) .. ".pset"
+    local fp = norns.state.data .. string.format("%02d", params.current or 1) .. ".pset"
     load_state(state_file(fp))
   end)
 end
