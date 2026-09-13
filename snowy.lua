@@ -235,7 +235,7 @@ end
 
 local function restart_all()
   for i = 1, NUM_TRACKS do
-    tracks[i].playhead = tracks[i].loop_start
+    tracks[i].playhead = tracks[i].loop_start - 1
   end
 end
 
@@ -322,15 +322,11 @@ local function load_pattern(slot)
 end
 
 local function set_playing(state)
-  if state then
-    clock.run(function()
-      clock.sync(1/4)   -- align to 16th-note boundary; lattice note sprockets coincide here
-      restart_all()
-      is_playing = true
-      start_midi_clock()
-    end)
+  is_playing = state
+  if is_playing then
+    restart_all()
+    start_midi_clock()
   else
-    is_playing = false
     all_notes_off()
     stop_midi_clock()
   end
@@ -420,8 +416,12 @@ local function setup_lattice()
             local t = tracks[i]
             local lo = t.loop_start
             local hi = t.loop_end
-            local step = (t.playhead >= lo and t.playhead <= hi) and t.playhead or lo
-            t.playhead = (step >= hi) and lo or (step + 1)
+            if t.playhead < lo or t.playhead >= hi then
+              t.playhead = lo
+            else
+              t.playhead = t.playhead + 1
+            end
+            local step = t.playhead
             local vol  = params:get("t" .. i .. "_vol")
             local prob = params:get("t" .. i .. "_prob")
             if t.steps[step] and not t.muted and vol > 0 and math.random(100) <= prob then
