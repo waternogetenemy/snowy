@@ -839,20 +839,20 @@ g.key = function(col, row, z)
   if row == GEN_ROW then
     local changed = true
     if col >= 1 and col <= 4 then
-      gen_mode = (gen_mode == col) and 0 or col
+      gen_mode = col
     elseif col == 6 then
       params:delta("t" .. selected_track .. "_octave", 1)
       gen_mode = 7; last_oct_dir = 1
     elseif col == 7 then
-      gen_mode = (gen_mode == 11) and 0 or 11
+      gen_mode = 11
     elseif col == 8 then
-      gen_mode = (gen_mode == 9) and 0 or 9
+      gen_mode = 9
     elseif col == 9 then
-      gen_mode = (gen_mode == 5) and 0 or 5
+      gen_mode = 5
     elseif col == 10 then
-      gen_mode = (gen_mode == 6) and 0 or 6
+      gen_mode = 6
     elseif col == 11 then
-      gen_mode = (gen_mode == 8) and 0 or 8
+      gen_mode = 8
     elseif col >= 13 and col <= 16 then
       selected_track = col - 12
       gen_mode = 10
