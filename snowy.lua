@@ -322,11 +322,15 @@ local function load_pattern(slot)
 end
 
 local function set_playing(state)
-  is_playing = state
-  if is_playing then
-    restart_all()
-    start_midi_clock()
+  if state then
+    clock.run(function()
+      clock.sync(1/24)  -- align to next MIDI clock tick boundary before starting
+      restart_all()
+      is_playing = true
+      start_midi_clock()
+    end)
   else
+    is_playing = false
     all_notes_off()
     stop_midi_clock()
   end
