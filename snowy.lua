@@ -66,7 +66,7 @@ local NOTE_NAMES = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"}
 -- -------------------------------------------------------
 local selected_track = 1
 local is_playing     = false
-local gen_mode       = 0  -- 0=overview,1=notes,2=vel,3=trigs,4=gates,5=div,6=swing,7=octave,8=nudge,9=scale,10=vol,11=prob
+local gen_mode       = 9  -- 0=overview,1=notes,2=vel,3=trigs,4=gates,5=div,6=swing,7=octave,8=nudge,9=scale,10=vol,11=prob
 local last_oct_dir   = 1  -- 1=up (A6), 2=down (B6)
 
 local gen_dirty = {}  -- gen_dirty[track][1-4]: param changed since last K3
@@ -484,6 +484,8 @@ local function setup_lattice()
     division = 1/96,
     enabled  = true
   })
+
+  seq_lattice:hard_restart()
 
   -- throttled grid refresh at ~30fps
   clock.run(function()
