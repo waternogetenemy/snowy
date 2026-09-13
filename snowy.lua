@@ -276,6 +276,7 @@ local function set_playing(state)
   if is_playing then
     restart_all()
     start_midi_clock()
+    seq_lattice:hard_restart()
   else
     all_notes_off()
     stop_midi_clock()
