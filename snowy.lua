@@ -324,6 +324,7 @@ end
 local function set_playing(state)
   is_playing = state
   if is_playing then
+    seq_lattice:hard_restart()
     restart_all()
     start_midi_clock()
   else
@@ -464,11 +465,6 @@ local function setup_lattice()
       division = div
     })
   end
-
-  clock.run(function()
-    clock.sleep(0.1)
-    seq_lattice:hard_restart()
-  end)
 
   -- MIDI clock ticks: 24ppqn via lattice (ppqn=96, so every 4 ticks = 1 MIDI clock)
   seq_lattice:new_sprocket({
