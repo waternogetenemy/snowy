@@ -75,6 +75,8 @@ local pattern_slots   = {}   -- saved pattern snapshots, indexed 1-16
 local pat_press_time  = {}   -- time of key-down per col on pattern row
 local HOLD_SAVE_S     = 0.5  -- seconds to hold for save
 
+local seq_lattice = nil
+
 local tracks = {}
 for i = 1, NUM_TRACKS do
   gen_dirty[i] = {false, false, false, false}
@@ -402,8 +404,6 @@ end
 -- -------------------------------------------------------
 -- lattice
 -- -------------------------------------------------------
-local seq_lattice = nil
-
 local function setup_lattice()
   seq_lattice = lattice:new{ppqn = 96}
 
