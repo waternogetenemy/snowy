@@ -235,7 +235,7 @@ end
 
 local function restart_all()
   for i = 1, NUM_TRACKS do
-    tracks[i].playhead = tracks[i].loop_start - 1
+    tracks[i].playhead = tracks[i].loop_start
   end
 end
 
@@ -324,7 +324,7 @@ end
 local function set_playing(state)
   if state then
     clock.run(function()
-      clock.sync(1/24)  -- align to next MIDI clock tick boundary before starting
+      clock.sync(1/4)   -- align to 16th-note boundary; lattice note sprockets coincide here
       restart_all()
       is_playing = true
       start_midi_clock()
@@ -420,12 +420,8 @@ local function setup_lattice()
             local t = tracks[i]
             local lo = t.loop_start
             local hi = t.loop_end
-            if t.playhead < lo or t.playhead >= hi then
-              t.playhead = lo
-            else
-              t.playhead = t.playhead + 1
-            end
-            local step = t.playhead
+            local step = (t.playhead >= lo and t.playhead <= hi) and t.playhead or lo
+            t.playhead = (step >= hi) and lo or (step + 1)
             local vol  = params:get("t" .. i .. "_vol")
             local prob = params:get("t" .. i .. "_prob")
             if t.steps[step] and not t.muted and vol > 0 and math.random(100) <= prob then
@@ -468,11 +464,6 @@ local function setup_lattice()
       division = div
     })
   end
-
-  clock.run(function()
-    clock.sleep(0.1)
-    seq_lattice:hard_restart()
-  end)
 
   -- MIDI clock ticks: 24ppqn via lattice (ppqn=96, so every 4 ticks = 1 MIDI clock)
   seq_lattice:new_sprocket({
