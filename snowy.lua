@@ -239,6 +239,56 @@ local function restart_all()
   end
 end
 
+local function state_file(pset_path)
+  return pset_path:gsub("%.pset$", ".sdata")
+end
+
+local function save_state(filepath)
+  local data = { tracks = {}, pattern_slots = {} }
+  for i = 1, NUM_TRACKS do
+    local t = tracks[i]
+    data.tracks[i] = {
+      notes      = {table.unpack(t.notes)},
+      velocities = {table.unpack(t.velocities)},
+      steps      = {table.unpack(t.steps)},
+      gates      = {table.unpack(t.gates)},
+      loop_start = t.loop_start,
+      loop_end   = t.loop_end,
+    }
+  end
+  for slot, p in pairs(pattern_slots) do
+    data.pattern_slots[slot] = p
+  end
+  tab.save(data, filepath)
+end
+
+local function load_state(filepath)
+  local data = tab.load(filepath)
+  if not data then return end
+  if data.tracks then
+    for i = 1, NUM_TRACKS do
+      local src = data.tracks[i]
+      if src then
+        local t = tracks[i]
+        if src.notes      then t.notes      = src.notes      end
+        if src.velocities then t.velocities = src.velocities end
+        if src.steps      then t.steps      = src.steps      end
+        if src.gates      then t.gates      = src.gates      end
+        if src.loop_start then t.loop_start = src.loop_start end
+        if src.loop_end   then t.loop_end   = src.loop_end   end
+        if t.playhead < t.loop_start or t.playhead > t.loop_end then
+          t.playhead = t.loop_start
+        end
+      end
+    end
+  end
+  if data.pattern_slots then
+    pattern_slots = data.pattern_slots
+  end
+  grid_redraw()
+  redraw()
+end
+
 local function save_pattern(slot)
   pattern_slots[slot] = {}
   for i = 1, NUM_TRACKS do
@@ -337,6 +387,16 @@ local function setup_params()
 
   nb:add_player_params()
   params:bang()
+
+  params.action_write = function(filename, name)
+    save_state(state_file(filename))
+  end
+  params.action_read = function(filename)
+    clock.run(function()
+      clock.sleep(0.1)
+      load_state(state_file(filename))
+    end)
+  end
 end
 
 -- -------------------------------------------------------
@@ -868,6 +928,12 @@ function init()
 
   grid_redraw()
   redraw()
+
+  clock.run(function()
+    clock.sleep(0.5)
+    local fp = norns.state.data .. string.format("%02d", params.current) .. ".pset"
+    load_state(state_file(fp))
+  end)
 end
 
 function cleanup()
